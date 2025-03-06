@@ -1,57 +1,108 @@
 import json
-import requests
-from datetime import datetime
-import logging
-import pytz
-from crontab import CronTab
-from dotenv import load_dotenv
 import os
+import datetime
+import pytz
+import requests
+import logging
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+from croniter import croniter
+import pathlib
+from pathlib import Path as pt
 
-# Загрузка переменных окружения из файла .env
+
+# Загрузка переменных окружения
 load_dotenv()
-with open('settings.json', 'r', encoding='utf-8') as f:
-    settings = json.load(f)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+TIMEZONE = os.getenv("reminderTZ", "UTC")
+SCHEDULES_URL = "http://localhost:7878/schedules"
+LOGPATH = os.getenv("LOGPATH", ".")
 
-# Настройка логирования
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+def init_log(name: str):
+    # Настройка логирования
 
-# Получение токена и chat ID из переменных окружения
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+    log = logging.getLogger(name)
+    log.setLevel(logging.DEBUG)
+    
+    handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'),encoding="utf-8", maxBytes=5000, backupCount=5)
+    handler2file.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler2file.setFormatter(formatter)
+    handler2con = logging.StreamHandler()
+    handler2con.setLevel(logging.INFO)
 
-# Функция для отправки сообщения в Telegram
-def send_message(token, chat_id, message):
-    url = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = {
-        'chat_id': chat_id,
-        'text': message
-    }
-    response = requests.post(url, json=payload)
-    logging.debug(f"Отправлено сообщение: {message}, статус: {response.status_code}")
+    log.addHandler(handler2file)
+    log.addHandler(handler2con)
+    return log
 
-# Основная функция
-def main():
+log = init_log('rmndr')
 
-    TZ = pytz.timezone(settings['globals']['timezone'])
-    current_time = datetime.now(TZ)
-    logging.debug("Текущее время в Москве: %s", current_time)
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message}
+    response = requests.post(url, data=data)
+    if response.status_code == 200:
+        log.debug("Сообщение успешно отправлено: %s", message)
+    else:
+        log.error("Ошибка при отправке сообщения: %s, код ответа: %d", message, response.status_code)
 
-    currUTC = current_time.replace(minute=0, second=0, microsecond=0)
-    for schedule in settings['schedules']:
-        cron_expression = schedule['cron']
-        message = schedule['message']
+def check_modifier(modifier, now):
+    if not modifier:
+        return True  # Если модификатор не задан, всегда срабатывает
 
-        logging.debug("Проверка cron-выражения: %s", cron_expression)
+    parts = modifier.split('>')
+    if len(parts) == 2:
+        start_date_str, rule = parts
+    else:
+        start_date_str, rule = '00010101', parts[0]  # По умолчанию 01.01.0001
 
-        # Создаем объект CronTab для проверки cron-выражения
-        cron = CronTab(cron_expression)
+    start_date = datetime.datetime.strptime(start_date_str, "%Y%m%d").date()
+    
+    if rule.startswith('w/'):
+        interval = int(rule[2:])
+        week_number = (now - start_date).days // 7
+        return week_number % interval == 0
+    
+    if rule.startswith('d/'):
+        interval = int(rule[2:])
+        days_since_start = (now - start_date).days
+        return days_since_start % interval == 0
+    
+    return False
 
-        # Проверяем, соответствует ли текущее время cron-выражению
-        if cron.test(currUTC):
-            logging.info("Соответствие найдено! Отправка сообщения: %s", message)
-            send_message(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, message)
+def get_schedules():
+    try:
+        response = requests.get(SCHEDULES_URL)
+        if response.status_code == 200:
+            log.debug("Получены расписания от сервера")
+            return response.json()
         else:
-            logging.debug("Текущее время не соответствует cron-выражению.")            
+            log.error("Ошибка при получении расписания, код ответа: %d", response.status_code)
+            return []
+    except Exception as e:
+        log.exception("Ошибка при запросе к серверу расписаний: %s", str(e))
+        return []
 
-if __name__ == '__main__':
-    main()
+# Основная логика выполнения задач
+timezone = pytz.timezone(TIMEZONE)
+now = datetime.datetime.now(timezone).date()
+strtime = datetime.datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
+log.info(f"Запуск скрипта напоминаний {strtime}")
+
+schedules = get_schedules()
+for schedule in schedules:
+    cron_expr = schedule["cron"]
+    message = schedule["message"]
+    modifier = schedule.get("modifier", "")
+    id = schedule["id"]
+    
+    if croniter.match(cron_expr, datetime.datetime.now(timezone)) and check_modifier(modifier, now):
+        log.info("Телеграфирую: %s", message)
+        send_telegram_message(message)
+        print(f"{now} sent № {id}")
+    else:
+        log.debug(f"Сообщение не отправлено: {message} (не соответствует условиям CRON:{cron_expr}({modifier})")
+
+strtime = datetime.datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
+log.info(f"Завершение работы скрипта  {strtime}")
