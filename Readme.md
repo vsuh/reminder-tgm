@@ -29,3 +29,38 @@
 TELEGRAM_TOKEN=72863000056:SHGHD-HyPJ6YxxxxxxxxMqOhWoSwC1umJX3MO0
 TELEGRAM_CHAT_ID=987xxx9879
 ```
+
+
+## Запуск в прод
+
+Создать файл службы `cron-telegram-reminder` для `systemd`
+
+```sh
+sudo nano /etc/systemd/system/cron-telegram-reminder.service
+```
+вставить туда, заменив USER и WORKDIR на правильные значение
+
+```
+[Unit]
+Description=Cron Telegram Reminder App
+After=network.target
+
+[Service]
+User=USER
+Group=USER
+WorkingDirectory=WORKDIR
+ExecStart=WORKDIR/run.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+обновить все службы, разрешить запуск службы `cron-telegram-reminder` при перезагрузке, запустить службу `cron-telegram-reminder`
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable cron-telegram-reminder
+sudo systemctl start cron-telegram-reminder
+sudo systemctl status cron-telegram-reminder
+```
