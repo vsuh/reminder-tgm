@@ -11,8 +11,16 @@ import pathlib
 from pathlib import Path as pt
 
 
+class MyError(Exception):
+    pass
+
 # Загрузка переменных окружения
-load_dotenv()
+ENVIRONMENT = 'prod' if os.name == 'posix' else 'dev'
+dotenv = f'.env.{ENVIRONMENT}'
+if not pt(dotenv).exists():
+    raise MyError(f"file {dotenv} not found")
+
+load_dotenv(dotenv)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 TIMEZONE = os.getenv("reminderTZ", "UTC")
@@ -88,7 +96,7 @@ def get_schedules():
 timezone = pytz.timezone(TIMEZONE)
 now = datetime.datetime.now(timezone).date()
 strtime = datetime.datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
-log.info(f"Запуск скрипта напоминаний {strtime}")
+log.info(f"Запуск скрипта напоминаний ({ENVIRONMENT}) {strtime}")
 
 schedules = get_schedules()
 for schedule in schedules:

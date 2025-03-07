@@ -23,11 +23,17 @@
 }
 ```
 
-Для отправки сообщений в телеграм чат требуются токен телеграм бота и id чата. Они хранятся в файле .env
+Для отправки сообщений в телеграм чат требуются токен телеграм бота и id чата. Они хранятся в файлах `.env`
+В `windows` загружается файл `.env.dev`, в `linux` - `.env.prod`
+
 
 ```sh
 TELEGRAM_TOKEN=72863000056:SHGHD-HyPJ6YxxxxxxxxMqOhWoSwC1umJX3MO0
 TELEGRAM_CHAT_ID=987xxx9879
+reminderTZ=Europe/Moscow
+DB_PATH=crn.db
+LOGPATH=/tmp/tglogs
+PORT=7878
 ```
 
 Для обслуживания расписания, скриптом `palmface.sh` запускается веб-интерфейс `http://localhost:7878` таблицы расписания (sqlite).
@@ -66,3 +72,4 @@ sudo systemctl enable cron-telegram-reminder
 sudo systemctl start cron-telegram-reminder
 sudo systemctl status cron-telegram-reminder
 ```
+

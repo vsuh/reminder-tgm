@@ -11,8 +11,17 @@ from croniter import croniter
 from datetime import datetime
 import re
 
-# Загрузка переменных окружения
-load_dotenv()
+class MyError(Exception):
+    pass
+
+
+ENVIRONMENT = 'prod' if os.name == 'posix' else 'dev'
+dotenv = f'.env.{ENVIRONMENT}'
+if not pt(dotenv).exists():
+    raise MyError(f"file {dotenv} not found")
+
+load_dotenv(dotenv)
+
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 DB_PATH = os.getenv("DB_PATH", "settings.db")
 LOGPATH = os.getenv("LOGPATH", ".")
