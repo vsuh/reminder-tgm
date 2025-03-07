@@ -25,7 +25,7 @@ def init_log(name: str):
     log = logging.getLogger(name)
     log.setLevel(logging.DEBUG)
     
-    handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'),encoding="utf-8", maxBytes=5000, backupCount=5)
+    handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'),encoding="utf-8", maxBytes=50000, backupCount=2)
     handler2file.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler2file.setFormatter(formatter)
