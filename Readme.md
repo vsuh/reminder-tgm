@@ -30,15 +30,17 @@ TELEGRAM_TOKEN=72863000056:SHGHD-HyPJ6YxxxxxxxxMqOhWoSwC1umJX3MO0
 TELEGRAM_CHAT_ID=987xxx9879
 ```
 
+Для обслуживания расписания, скриптом `palmface.sh` запускается веб-интерфейс `http://localhost:7878` таблицы расписания (sqlite).
 
-## Запуск в прод
+
+## Запуск в проде
 
 Создать файл службы `cron-telegram-reminder` для `systemd`
 
 ```sh
 sudo nano /etc/systemd/system/cron-telegram-reminder.service
 ```
-вставить туда, заменив USER и WORKDIR на правильные значение
+вставить туда, заменив USER и WORKDIR на правильные значения
 
 ```
 [Unit]
@@ -49,7 +51,7 @@ After=network.target
 User=USER
 Group=USER
 WorkingDirectory=WORKDIR
-ExecStart=WORKDIR/run.sh
+ExecStart=WORKDIR/palmface.sh
 Restart=always
 
 [Install]
