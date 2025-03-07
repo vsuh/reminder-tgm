@@ -25,7 +25,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 SCHEDULES_URL = "http://localhost:7878/schedules"
-LOGPATH = os.getenv("LOGPATH", ".")
+LOGPATH = os.getenv("LOGPATH", "/tmp")
 
 def init_log(name: str):
     # Настройка логирования

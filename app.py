@@ -25,20 +25,27 @@ load_dotenv(dotenv)
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 DB_PATH = os.getenv("DB_PATH", "settings.db")
 LOGPATH = os.getenv("LOGPATH", ".")
+LOGLEVEL = os.getenv("LOG_LEVEL", 'INFO').upper() 
 APIPORT = os.getenv("PORT", "7878")
+SECRET_KEY = os.getenv("SECRET_KEY")
+DEBUG = os.getenv("DEBUG", False).lower() in ('true', 'yes', '1')
 
 # Настройка логирования
 def init_log(name: str):
     log = logging.getLogger(name)
     log.setLevel(logging.DEBUG)
+    try:
+        level = getattr(logging, LOGLEVEL)
+    except AttributeError:
+        level = logging.INFO if ENVIRONMENT == 'prod' else logging.DEBUG
     
     handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=5)
-    handler2file.setLevel(logging.DEBUG)
+    handler2file.setLevel(level)     
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler2file.setFormatter(formatter)
     
     handler2con = logging.StreamHandler()
-    handler2con.setLevel(logging.INFO)
+    handler2con.setLevel(level)
 
     log.addHandler(handler2file)
     log.addHandler(handler2con)
@@ -48,6 +55,8 @@ log = init_log('svrm')
 
 # Инициализация Flask
 app = Flask(__name__)
+app.config['SECRET_KEY'] = SECRET_KEY
+app.config['DEBUG'] = DEBUG
 
 # Инициализация базы данных
 def init_db():
