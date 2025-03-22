@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Следующие события по расписанию</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"  crossorigin="anonymous">
+</head>
+<body>
+<div class="container mt-5">
+    <h1>Следующие {{ next_dates|length }} событий для расписания</h1>
+    <p>CRON: {{ schedule.cron }}</p>
+    <p>Сообщение: {{ schedule.message }}</p>
+    <p>Модификатор: {{ schedule.modifier }}</p>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th scope="col">Дата события</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for nd in next_dates %}
+            <tr>
+                <td>{{ nd | fromisoformat | format_datetime  }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="/" class="btn btn-primary">Вернуться к списку расписаний</a>
+</div>
+</body>
+</html>

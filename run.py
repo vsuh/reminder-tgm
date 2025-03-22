@@ -6,10 +6,10 @@ import requests
 import logging
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
-from croniter import croniter
+# from croniter import croniter
 import pathlib
 from pathlib import Path as pt
-
+from vcron import VCron
 
 class MyError(Exception):
     pass
@@ -26,6 +26,8 @@ CHAT_ID = os.getenv("CHAT_ID")
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 SCHEDULES_URL = "http://localhost:7878/schedules"
 LOGPATH = os.getenv("LOGPATH", "/tmp")
+
+myVCron = VCron(TIMEZONE)
 
 def init_log(name: str):
     # Настройка логирования
@@ -105,7 +107,8 @@ for schedule in schedules:
     modifier = schedule.get("modifier", "")
     id = schedule["id"]
     
-    if croniter.match(cron_expr, datetime.datetime.now(timezone)) and check_modifier(modifier, now):
+    # if croniter.match(cron_expr, datetime.datetime.now(timezone)) and check_modifier(modifier, now):
+    if myVCron.check_cron(cron_expr, datetime.datetime.now(timezone)) and myVCron.check_modifier(modifier, now):
         log.info("Телеграфирую: %s", message)
         send_telegram_message(message)
         print(f"{now} sent № {id}")

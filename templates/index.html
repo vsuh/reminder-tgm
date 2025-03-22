@@ -20,6 +20,7 @@
                 <th scope="col">CRON</th>
                 <th scope="col">Сообщение</th>
                 <th scope="col">Модификатор</th>
+                <th scope="col">Следующий</th>
                 <th scope="col">&nbsp;</th>
             </tr>
         </thead>
@@ -29,10 +30,14 @@
                 <td>{{ schedule.cron }}</td>
                 <td>{{ schedule.message }}</td>
                 <td>{{ schedule.modifier }}</td>
+                <td>{{ schedule.next }}</td>
                 <td>
                     <a href="/edit/{{ schedule.id }}" title="Редактировать"><i class="fas fa-edit text-primary mr-2"></i></a>
+                    <a href="/list/{{ schedule.id }}" title="Следующие 10"><i class="fas fa-list-ol text-primary mr-2"></i></a>
                     <form action="/schedules/{{ schedule.id }}/delete" method="post" style="display: inline-block;">
-                        <button type="submit" title="Удалить" onclick="return confirm('Вы уверены?')"><i class="fas fa-trash-alt text-danger"></i></button>
+                        <button type="submit" title="Удалить ❌" onclick="return confirm('Вы уверены?')">
+                            <i class="fas fa-trash-alt text-danger"></i>
+                        </button>
                     </form>
                 </td>
             </tr>
