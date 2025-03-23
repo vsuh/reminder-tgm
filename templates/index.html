@@ -4,10 +4,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Управление расписаниями</title>
-        <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" integrity="sha384-B0vP5xmATw1+K9KRQjQVrC7SBLy9XXWpI1NkkNzctZBYOYphXMeBgnU9ZwJBADn" crossorigin="anonymous"-->
-      
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous">
-        <!--link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" integrity="sha384-DyZ88mCtupJTcCZJ4UWNGxOMLaBtO0ngdEoKk58ekozwb5oqFYvHWcNdbyJ28DuFL" crossorigin="anonymous"-->
         <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"  crossorigin="anonymous">
     </head>
 <body>
@@ -22,15 +19,20 @@
                 <th scope="col">Модификатор</th>
                 <th scope="col">Следующий</th>
                 <th scope="col">&nbsp;</th>
+                <th scope="col">id</th>
             </tr>
         </thead>
         <tbody>
             {% for schedule in schedules %}
-            <tr>
-                <td>{{ schedule.cron }}</td>
+                {% if schedule.last_fired %}
+                    <tr title = "Последний раз уведомление отправлено {{ schedule.last_fired | fromisoformat | format_datetime }}">
+                {% else %}
+                    <tr title = "Уведомление еще не отправлялось">
+                {% endif %}
+                <td>{{ schedule.cron }} </td>
                 <td>{{ schedule.message }}</td>
                 <td>{{ schedule.modifier }}</td>
-                <td>{{ schedule.next }}</td>
+                <td>{{ schedule.next | fromisoformat | format_datetime }}</td>
                 <td>
                     <a href="/edit/{{ schedule.id }}" title="Редактировать"><i class="fas fa-edit text-primary mr-2"></i></a>
                     <a href="/list/{{ schedule.id }}" title="Следующие 10"><i class="fas fa-list-ol text-primary mr-2"></i></a>
@@ -40,6 +42,7 @@
                         </button>
                     </form>
                 </td>
+                <td>{{ schedule.id }}</td>
             </tr>
             {% endfor %}
         </tbody>

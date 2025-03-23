@@ -1,114 +1,28 @@
 import json
-import os
-import sqlite3
 import logging
-from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
-from flask import Flask, request, jsonify, render_template, redirect, url_for, abort, send_file
-from pathlib import Path as pt
-import tempfile
-from croniter import croniter
-from datetime import date, datetime, timedelta
-import pytz
-from dateutil.relativedelta import relativedelta
+import os
 import re
+import shutil
+import sqlite3
+import tempfile
+from datetime import date, datetime, timedelta
 
-# Класс для кастомных исключений
-class MyError(Exception):
-    pass
+import pytz
+from croniter import croniter
+from dateutil.relativedelta import relativedelta
+from flask import (Flask, abort, g, jsonify, redirect, render_template,
+                   request, send_file, url_for)
 
-class VCron:
-    def __init__(self, timezone: str = "UTC"):
-        self.timezone = pytz.timezone(timezone)
+from lib.cron_utils import VCron
+from lib.db_utils import (add_schedule, delete_schedule, get_schedule,
+                           get_schedules, init_db, update_schedule)
+from lib.utils import MyError, get_environment, init_log, load_env
 
-    def check_cron(self, cron_expression: str, date: datetime) -> bool:
-        return croniter.match(cron_expression, date)
+# Load environment variables
+environment = get_environment()
+load_env(environment)
 
-    def valid(self, cron_expression: str) -> bool:
-        try:
-            croniter(cron_expression)  # Directly check with croniter
-            return True
-        except ValueError:
-            return False
-        
-    def is_valid_modifier(self, modifier):
-        if not modifier:
-            return True
-        pattern = r'^(?:(?P<date>\d{8})>?)?(?P<period>[wd]\/\d+)$'
-
-        match = re.match(pattern, modifier)
-        if not match:
-            return False
-
-        period_part = match['period']
-
-        if date_part := match['date']:
-            try:
-                year = int(date_part[:4])
-                month = int(date_part[4:6])
-                day = int(date_part[6:])
-
-                # Проверка на корректность даты
-                if not (1900 <= year <= 9999 and 1 <= month <= 12 and 1 <= day <= 31):
-                    return False
-            except ValueError:
-                return False
-
-        # Проверка периода
-        period_match = re.match(r'[wd]\/\d+$', period_part)
-        return bool(period_match)
-
-    def check_modifier(self, modifier: str, now: datetime) -> bool:
-        if not modifier:
-            return True
-
-        parts = modifier.split(">")
-        start_date_str = parts[0] if len(parts) == 2 else "20010101"
-        rule = parts[-1]
-
-        try:
-            start_datetime = self.timezone.localize(datetime.combine(datetime.strptime(start_date_str, "%Y%m%d").date(), datetime.min.time()))
-        except OverflowError:
-            start_datetime = self.timezone.localize(datetime(2001, 1, 1)) # Fallback to a safe date
-
-        if rule.startswith(("w/", "d/", "m/")):  # Handle all three types
-            interval = int(rule[2:])
-            delta = relativedelta(now, start_datetime)
-            days_since = self.days_since(now.date(), start_datetime.date(), )
-
-            if rule.startswith("w/"):
-                weeks = int(days_since/7)
-                return (weeks % interval == 0) and (days_since%7 == 0)
-            elif rule.startswith("d/"):
-                return days_since % interval == 0
-
-        return False
-    
-    def days_since(self, today_date:datetime.date, base_date: datetime.date) -> int:
-        delta = today_date - base_date
-        return delta.days
-
-    def get_next_match(self, cron_expression: str, modifier: str = None, start_time: datetime = None) -> datetime or None:
-        current_time = start_time or datetime.now(tz=self.timezone)  # Use timezone-aware datetime
-        iterator = croniter(cron_expression, current_time)
-
-        for _ in range(9999):  # Limit to prevent infinite loop
-            next_match = iterator.get_next(datetime)
-            if self.check_modifier(modifier, next_match):
-                return next_match.astimezone(self.timezone)  # Ensure correct timezone
-
-        return None
-    
-# Определение окружения
-ENVIRONMENT = 'prod' if os.name == 'posix' else 'dev'
-dotenv_path = f'.env.{ENVIRONMENT}'
-if not pt(dotenv_path).exists():
-    raise MyError(f"Файл {dotenv_path} не найден")
-
-# Загрузка переменных окружения
-load_dotenv(dotenv_path)
-
-# Чтение переменных окружения
+# Read environment variables
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 DB_PATH = os.getenv("DB_PATH", "settings.db")
 LOGPATH = os.getenv("LOGPATH", ".")
@@ -119,97 +33,23 @@ DEBUG = os.getenv("DEBUG", False).lower() in ('true', 'yes', '1')
 
 myVCron = VCron(TIMEZONE)
 
-# Настройка логирования
-def init_log(name: str):
-    log = logging.getLogger(name)
-    log.setLevel(logging.DEBUG)
-    try:
-        level = getattr(logging, LOGLEVEL)
-    except AttributeError:
-        level = logging.INFO if ENVIRONMENT == 'prod' else logging.DEBUG
-    
-    handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=5)
-    handler2file.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler2file.setFormatter(formatter)
-    
-    handler2con = logging.StreamHandler()
-    handler2con.setLevel(level)
+log = init_log('svrm', LOGPATH, LOGLEVEL)
 
-    log.addHandler(handler2file)
-    log.addHandler(handler2con)
-    return log
-
-log = init_log('svrm')
-
-# Инициализация Flask
+# Initialize Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['DEBUG'] = DEBUG
 
-# Инициализация базы данных
-def init_db():
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA encoding = 'UTF-8';")
-            cursor.execute('''CREATE TABLE IF NOT EXISTS schedules (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                cron TEXT NOT NULL,
-                                message TEXT NOT NULL,
-                                modifier TEXT
-                            )''')
-            conn.commit()
-        log.info(f"База данных '{DB_PATH}' успешно инициализирована")
-    except sqlite3.Error as e:
-        log.error(f"Ошибка инициализации БД '{DB_PATH}': %s", str(e))
 
-init_db()
-
-# Валидация CRON выражения
-# def is_valid_cron(expr):
-#     try:
-#         return myVCron.valid(expr)
-#     except ValueError:
-#         return False
-
-# Валидация модификатора
-# def is_valid_modifier(modifier):
-#     if not modifier:
-#         return True
-#     pattern = r'^(?:(?P<date>\d{8})>?)?(?P<period>[wd]\/\d+)$'
-    
-#     match = re.match(pattern, modifier)
-#     if not match:
-#         return False
-    
-#     date_part = match.group('date')
-#     period_part = match.group('period')
-    
-#     # Проверка даты (если указана)
-#     if date_part:
-#         try:
-#             year = int(date_part[:4])
-#             month = int(date_part[4:6])
-#             day = int(date_part[6:])
-            
-#             # Проверка на корректность даты
-#             if not (1900 <= year <= 9999 and 1 <= month <= 12 and 1 <= day <= 31):
-#                 return False
-#         except ValueError:
-#             return False
-    
-#     # Проверка периода
-#     period_match = re.match(r'[wd]\/\d+$', period_part)
-#     return bool(period_match)
+init_db(DB_PATH, False)
 
 # Функции работы с БД
 def get_schedules():
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier FROM schedules")
-            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3]} for row in cursor.fetchall()]
+            cursor.execute("SELECT id, cron, message, modifier, last_fired FROM schedules")
+            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4]} for row in cursor.fetchall()]
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписаний: %s", str(e))
         return []
@@ -218,10 +58,10 @@ def get_schedule(schedule_id):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier FROM schedules WHERE id = ?", (schedule_id,))
+            cursor.execute("SELECT id, cron, message, modifier, last_fired FROM schedules WHERE id = ?", (schedule_id,))
             row = cursor.fetchone()
             if row:
-                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3]}
+                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4]}
             else:
                 return None
     except sqlite3.Error as e:
@@ -298,6 +138,28 @@ def index():
 @app.route("/schedules", methods=["GET"])
 def list_schedules():
     return jsonify(get_schedules())
+
+@app.route("/schedules_all", methods=["POST"])
+def create_schedules_by_list():
+    list_data = request.get_json()
+    if isinstance(list_data, list):
+        if len(list_data)==0:
+            abort(400, description="Получен пустой массив")
+    else:
+        abort(400, description="Ожидался массив расписаний")
+         
+    for data in list_data:
+        if not data or "cron" not in data or "message" not in data:
+            abort(400, description="Неверный формат данных")
+        if not myVCron.valid(data["cron"]):
+            raise ValueError(f'Invalid CRON expression: "{data["cron"]}"')
+        if not myVCron.is_valid_modifier(data.get("modifier", "")):
+            raise ValueError(f'Invalid modifier expression "{data.get("modifier", "")}"')
+
+        add_schedule(data["cron"], data["message"], data.get("modifier", ""))
+    
+    return jsonify({"status": "success"}), 201
+
 
 @app.route("/schedules", methods=["POST"])
 def create_schedule():
@@ -398,11 +260,11 @@ def export_json():
 
 @app.route("/drop_db", methods=["GET"])
 def reset_db():
+    global DB_PATH
     try:
-        os.remove(DB_PATH)
-        init_db()
-        log.info("База данных переинициализирована")
+        init_db(DB_PATH)
         return redirect(url_for("index"))
+
     except Exception as e:
         log.error("Ошибка при переинициализации БД: %s", str(e))
         abort(500, description="Ошибка при переинициализации БД")
@@ -417,7 +279,7 @@ def fromisoformat_filter(s):
 
 @app.template_filter('format_datetime')
 def format_datetime_filter(dt):
-    return dt.strftime('%Y-%m-%d %H:%M') if dt else None # Handle None values
+    return dt.strftime('%Y-%m-%d %H:%M') if dt else "##" # Handle None values
 
 
 if __name__ == "__main__":

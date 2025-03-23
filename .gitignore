@@ -3,7 +3,5 @@ __pycache__/
 log/
 .vscode/  
 *.db
-.env
-.env.*
-settings.json  
-*.log.*
+env/
+dataschedules.json 

@@ -1,119 +1,74 @@
 import json
 import os
-import datetime
-import pytz
+from datetime import datetime
+
 import requests
-import logging
-from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
-# from croniter import croniter
-import pathlib
-from pathlib import Path as pt
-from vcron import VCron
+import pytz
+from croniter import croniter
 
-class MyError(Exception):
-    pass
+from lib.cron_utils import VCron
+from lib.db_utils import update_last_fired
+from lib.utils import get_environment, init_log, load_env
 
-# Загрузка переменных окружения
-ENVIRONMENT = 'prod' if os.name == 'posix' else 'dev'
-dotenv = f'.env.{ENVIRONMENT}'
-if not pt(dotenv).exists():
-    raise MyError(f"file {dotenv} not found")
+# Load environment variables
+environment = get_environment()
+load_env(environment)
 
-load_dotenv(dotenv)
+# Get environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("reminderTZ", "UTC")
 SCHEDULES_URL = "http://localhost:7878/schedules"
-LOGPATH = os.getenv("LOGPATH", "/tmp")
+LOGPATH = os.getenv("LOGPATH", ".")
+LOGLEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
+# Initialize logger
+log = init_log('rmndr', LOGPATH, LOGLEVEL)
+
+# Initialize VCron
 myVCron = VCron(TIMEZONE)
-
-def init_log(name: str):
-    # Настройка логирования
-
-    log = logging.getLogger(name)
-    log.setLevel(logging.DEBUG)
-    
-    handler2file = RotatingFileHandler(pt(LOGPATH).joinpath(f'{name}.log'),encoding="utf-8", maxBytes=50000, backupCount=2)
-    handler2file.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler2file.setFormatter(formatter)
-    handler2con = logging.StreamHandler()
-    handler2con.setLevel(logging.INFO)
-
-    log.addHandler(handler2file)
-    log.addHandler(handler2con)
-    return log
-
-log = init_log('rmndr')
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": message}
-    response = requests.post(url, data=data)
-    if response.status_code == 200:
+    try:
+        response = requests.post(url, data=data)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
         log.debug("Сообщение успешно отправлено: %s", message)
-    else:
-        log.error("Ошибка при отправке сообщения: %s, код ответа: %d", message, response.status_code)
-
-def check_modifier(modifier, now):
-    if not modifier:
-        return True  # Если модификатор не задан, всегда срабатывает
-
-    parts = modifier.split('>')
-    if len(parts) == 2:
-        start_date_str, rule = parts
-    else:
-        start_date_str, rule = '00010101', parts[0]  # По умолчанию 01.01.0001
-
-    start_date = datetime.datetime.strptime(start_date_str, "%Y%m%d").date()
-    
-    if rule.startswith('w/'):
-        interval = int(rule[2:])
-        week_number = (now - start_date).days // 7
-        return week_number % interval == 0
-    
-    if rule.startswith('d/'):
-        interval = int(rule[2:])
-        days_since_start = (now - start_date).days
-        return days_since_start % interval == 0
-    
-    return False
+    except requests.exceptions.RequestException as e:
+        log.error("Ошибка при отправке сообщения: %s, ошибка: %s", message, e)
 
 def get_schedules():
     try:
         response = requests.get(SCHEDULES_URL)
-        if response.status_code == 200:
-            log.debug("Получены расписания от сервера")
-            return response.json()
-        else:
-            log.error("Ошибка при получении расписания, код ответа: %d", response.status_code)
-            return []
-    except Exception as e:
-        log.exception("Ошибка при запросе к серверу расписаний: %s", str(e))
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        schedules = response.json()
+        log.debug(f"Получены расписания от сервера ({len(schedules)})")
+        return schedules
+    except requests.exceptions.RequestException as e:
+        log.error(f"Ошибка при запросе к серверу расписаний: {e}")
         return []
 
-# Основная логика выполнения задач
+# Main execution logic
 timezone = pytz.timezone(TIMEZONE)
-now = datetime.datetime.now(timezone).date()
-strtime = datetime.datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
-log.info(f"Запуск скрипта напоминаний ({ENVIRONMENT}) {strtime}")
+now = datetime.now(timezone)
+
+log.info(f"Запуск скрипта напоминаний ({environment}) {now.strftime('%d-%m-%Y %H:%M:%S')}")
 
 schedules = get_schedules()
-for schedule in schedules:
-    cron_expr = schedule["cron"]
-    message = schedule["message"]
-    modifier = schedule.get("modifier", "")
-    id = schedule["id"]
-    
-    # if croniter.match(cron_expr, datetime.datetime.now(timezone)) and check_modifier(modifier, now):
-    if myVCron.check_cron(cron_expr, datetime.datetime.now(timezone)) and myVCron.check_modifier(modifier, now):
-        log.info("Телеграфирую: %s", message)
-        send_telegram_message(message)
-        print(f"{now} sent № {id}")
-    else:
-        log.debug(f"Сообщение не отправлено: {message} (не соответствует условиям CRON:{cron_expr}({modifier})")
+if schedules: # Check if schedules is not empty
+    for schedule in schedules:
+        cron_expr = schedule["cron"]
+        message = schedule["message"]
+        modifier = schedule.get("modifier", "")
+        id = schedule["id"]
 
-strtime = datetime.datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')
-log.info(f"Завершение работы скрипта  {strtime}")
+        if myVCron.check_cron(cron_expr, now) and myVCron.check_modifier(modifier, now):
+            log.info("Телеграфирую: %s", message)
+            send_telegram_message(message)
+            update_last_fired(id)
+            print(f"{now} sent № {id}")
+        else:
+            log.debug(f"Сообщение не отправлено: {message} (не соответствует условиям CRON:{cron_expr}({modifier})")
+
+log.info(f"Завершение работы скрипта  {datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')}")
