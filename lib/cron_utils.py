@@ -85,10 +85,19 @@ class VCron:
         return delta.days
 
     def get_next_match(self, cron_expression: str, modifier: str = None, start_time: datetime = None) -> datetime or None:
-        current_time = start_time or datetime.now(tz=self.timezone)  # Use timezone-aware datetime
+        current_time = start_time or datetime.now(tz=self.timezone).replace(microsecond=0)
+        cron_expression = self._remove_minutes(cron_expression) 
         iterator = croniter(cron_expression, current_time)
 
-        for _ in range(9999):  # Limit to prevent infinite loop
+        if croniter.match(cron_expression, current_time): # Check if current_time matches cron expression
+            next_match = current_time
+        else:
+            next_match = iterator.get_next(datetime)
+
+        if self.check_modifier(modifier, next_match):
+            return next_match.astimezone(self.timezone).replace(microsecond=0) # Ensure correct timezone and reset microseconds
+
+        for _ in range(9999):  # Limit to prevent infinite loop, reduced by 1 due to initial check
             next_match = iterator.get_next(datetime)
             if self.check_modifier(modifier, next_match):
                 return next_match.astimezone(self.timezone)  # Ensure correct timezone

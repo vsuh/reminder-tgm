@@ -9,7 +9,7 @@
     </head>
 <body>
 <div class="container mt-5">
-    <h1>Расписания</h1>
+    <h1 title="Используется БД: {{ db_path }}">Расписания</h1>
     {% if schedules %}
     <table class="table table-striped">
         <thead>
@@ -37,12 +37,12 @@
                     <a href="/edit/{{ schedule.id }}" title="Редактировать"><i class="fas fa-edit text-primary mr-2"></i></a>
                     <a href="/list/{{ schedule.id }}" title="Следующие 10"><i class="fas fa-list-ol text-primary mr-2"></i></a>
                     <form action="/schedules/{{ schedule.id }}/delete" method="post" style="display: inline-block;">
-                        <button type="submit" title="Удалить ❌" onclick="return confirm('Вы уверены?')">
-                            <i class="fas fa-trash-alt text-danger"></i>
+                        <button type="submit" title="Удалить ❌" onclick="return confirm('Вы уверены?')" class="btn btn-link text-danger p-0 border-0">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>
                 </td>
-                <td>{{ schedule.id }}</td>
+                <td><p class="text-muted fs-6">{{ schedule.id }}</p></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -67,8 +67,8 @@
             <label for="modifier">Модификатор:</label>
             <input type="text" class="form-control" id="modifier" name="modifier">
         </div>
-        <button type="submit" class="btn btn-success">Добавить</button>
-    <button type="button" class="btn btn-warning" onclick="location.href='/drop_db'">Переинициализировать базу данных</button>
+        <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i>&nbsp; Добавить</button>
+    <button type="button" class="btn btn-warning" onclick="if (confirm('БД {{ db_path }} будет УДАЛЕНА и создана вновь пустой.\nЭто действие необратимо. Вы уверены?')) { location.href='/drop_db'; } return false;"><i class="fas fa-trash-alt" style="color:rgb(81, 48, 136);"></i>&nbsp; Очистить базу данных</button>
     </form>
 
     <hr>

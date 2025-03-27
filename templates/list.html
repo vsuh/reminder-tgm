@@ -14,22 +14,34 @@
     <p>Сообщение: {{ schedule.message }}</p>
     <p>Модификатор: {{ schedule.modifier }}</p>
 
+    <a href="/" class="btn btn-primary">
+        <i class="fas fa-backward fa-2xl" style="color: #FFD43B;"></i>&nbsp;
+        Вернуться к списку расписаний</a>
+    
     <table class="table table-striped">
-        <thead>
-            <tr>
-                <th scope="col">Дата события</th>
+ 
+            <thead>
+        <tr>
+                <th>#</th>
+                <th>Дата события</th>
             </tr>
         </thead>
+
         <tbody>
             {% for nd in next_dates %}
             <tr>
-                <td>{{ nd | fromisoformat | format_datetime  }}</td>
+                <td scope="row">{{ loop.index }}</td>
+                <td> {{ nd | fromisoformat | format_datetime }}</td>
             </tr>
             {% endfor %}
-        </tbody>
-    </table>
+         </tbody>
+   
+      </table> 
+     <a href="/" class="btn btn-primary">
+        <i class="fas fa-backward fa-2xl" style="color: #FFD43B;"></i>&nbsp;
+        Вернуться к списку расписаний</a>
+    
 
-    <a href="/" class="btn btn-primary">Вернуться к списку расписаний</a>
 </div>
 </body>
 </html>
