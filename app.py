@@ -92,7 +92,7 @@ def add_schedule(cron: str, message: str, modifier: str):
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
 
-def delete_schedule(schedule_id: int):
+def delete_schedule(schedule_id):
     """
     Удаляет расписание из базы данных.
 
