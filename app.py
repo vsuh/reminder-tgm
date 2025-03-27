@@ -92,7 +92,7 @@ def add_schedule(cron: str, message: str, modifier: str):
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
 
-def delete_schedule(schedule_id):
+def delete_schedule(schedule_id: int):
     """
     Удаляет расписание из базы данных.
 
@@ -263,7 +263,7 @@ def delete_schedule_post(schedule_id: int):
     Returns:
         flask.wrappers.Response: Редирект на главную страницу.
     """
-    delete_schedule(schedule_id: int)
+    delete_schedule(schedule_id)
     return redirect(url_for('index'))
 
 @app.route("/schedules/<int:schedule_id>", methods=["POST"])
