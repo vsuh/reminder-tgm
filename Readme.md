@@ -62,21 +62,21 @@ sudo nano /etc/systemd/system/cron-telegram-reminder.service
 ```
 
 Вставьте следующее содержимое, заменив USER и WORKDIR на ваши значения:
-
-```ini
 [Unit]
-Description=Cron Telegram Reminder App
+Description=Cron Reminder Web Server
 After=network.target
 
 [Service]
 User=USER
+Group=GROUP
 WorkingDirectory=WORKDIR
-ExecStart=/usr/bin/python3 WORKDIR/run.py # Use full path to python3
+ExecStart=/bin/bash -c "source WORKDIR/venv/bin/activate; gunicorn --workers 2 --bind 0.0.0.0:PORT app:app"
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-```
+
+
 
 - Обновите systemd, включите и запустите службу:
 

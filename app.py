@@ -13,6 +13,7 @@ from dateutil.relativedelta import relativedelta
 from flask import (Flask, abort, g, jsonify, redirect, render_template,
         request, send_file, url_for)
 
+from lib.utils import init_log
 from lib.cron_utils import VCron
 from lib.db_utils import (add_schedule, delete_schedule, get_schedule,
         get_schedules, init_db, update_schedule)
@@ -22,24 +23,7 @@ from lib.utils import MyError, get_environment_name, init_log, load_env
 environment = get_environment_name()
 load_env(environment)
 
-# Read environment variables
-TIMEZONE = os.getenv("reminderTZ", "UTC")
-DB_PATH = os.getenv("DB_PATH", "settings.db")
-LOGPATH = os.getenv("LOGPATH", ".")
-LOGLEVEL = os.getenv("LOG_LEVEL", 'INFO').upper()
-APIPORT = os.getenv("PORT", "7878")
-SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG", False).lower() in ('true', 'yes', '1')
-
-myVCron = VCron(TIMEZONE)
-log = init_log('svrm', LOGPATH, LOGLEVEL)
-
-# Initialize Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = SECRET_KEY
-app.config['DEBUG'] = DEBUG
-
-init_db(DB_PATH, False)
 
 # Функции работы с БД
 def get_schedules()-> list:
