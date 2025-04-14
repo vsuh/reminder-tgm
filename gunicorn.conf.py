@@ -12,7 +12,8 @@ WORKERS = os.getenv("GUNICORN_WORKERS", 2)
 TIMEOUT = os.getenv("GUNICORN_TIMEOUT", 120)
 
 # Настройки Gunicorn
-bind = f"0.0.0.0:{PORT}" if environment == 'prod' else f"127.0.0.1:{PORT}"
+bind = f"0.0.0.0:{PORT}" if environment == 'prod' else f"127.0.0.1:{PORT}" # Use TCP sockets in Windows
+
 workers = int(WORKERS)
 worker_class = "sync"
 timeout = int(TIMEOUT)

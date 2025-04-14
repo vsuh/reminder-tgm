@@ -5,6 +5,10 @@ from dateutil.relativedelta import relativedelta
 import re
 
 class VCron:
+    """
+    Класс для работы с cron выражениями и модификаторами.
+    """
+
     def __init__(self, timezone: str = "UTC"):
         self.timezone = pytz.timezone(timezone)
 
@@ -24,7 +28,7 @@ class VCron:
         except ValueError:
             return False
 
-    def is_valid_modifier(self, modifier):
+    def is_valid_modifier(self, modifier: str) -> bool:
         if not modifier:
             return True
         pattern = r'^(?:(?P<date>\d{8})>?)?(?P<period>[wdm]\/\d+)$' # Added 'm' for month support

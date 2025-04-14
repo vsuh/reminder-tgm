@@ -26,7 +26,7 @@ def init_db(db_path=DB_PATH, drop_table=True):
     try:
         with sqlite3.connect(db_path) as conn:
             run_initialization(conn, drop_table, db_path)
-        log.info(f"Таблица базы данных '{db_path}.schedules' успешно инициализирована")
+        log.info(f"Таблица базы данных '{db_path}.schedules' успешно {'пересоздана' if drop_table else 'установлена'}")
     except sqlite3.Error as e:
         log.error(f"Ошибка инициализации БД '{db_path}': %s", str(e))
 

@@ -7,8 +7,9 @@ class MyError(Exception):
     """Класс для пользовательских исключений"""
     pass
 
-def init_log(name: str, log_path: str = ".", log_level: str = "INFO") -> logging.Logger:
+def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> logging.Logger:
     """
+    
     Инициализирует логгер с обработчиками для файла и консоли.
 
     Args:
@@ -19,7 +20,7 @@ def init_log(name: str, log_path: str = ".", log_level: str = "INFO") -> logging
     Returns:
         logging.Logger: Инициализированный логгер.
     """
-    log = logging.getLogger(name)
+    log = logging.getLogger(__name__) if name is None else logging.getLogger(name)
     log.setLevel(logging.DEBUG)
 
     try:
@@ -29,7 +30,7 @@ def init_log(name: str, log_path: str = ".", log_level: str = "INFO") -> logging
 
     handler2file = RotatingFileHandler(pt(log_path).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=5)
     handler2file.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(name)s@(%(module)s:%(lineno)d)- %(levelname)s - %(message)s')
     handler2file.setFormatter(formatter)
 
     handler2con = logging.StreamHandler()
@@ -37,6 +38,8 @@ def init_log(name: str, log_path: str = ".", log_level: str = "INFO") -> logging
 
     log.addHandler(handler2file)
     log.addHandler(handler2con)
+
+    log.info(f'Протоколирование уровня "{log_level}" с именем "{name}" установлено. Логфайлы в каталоге "{log_path}"')
     return log
 
 def load_env(environment: str = "dev"):
