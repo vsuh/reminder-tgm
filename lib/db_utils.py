@@ -17,16 +17,20 @@ log = init_log('db_utils', LOGPATH, LOGLEVEL)
 
 def init_db(db_path=DB_PATH, drop_table=True):
     """
-    Инициализирует базу данных SQLite.
+    Инициализирует базу данных SQLite.  Выполняет инициализацию только один раз.
 
     Args:
         db_path (str): Путь к файлу базы данных.
         drop_table (bool): Флаг, указывающий на необходимость удаления существующей таблицы перед созданием новой.
     """
+    if hasattr(init_db, "_initialized") and init_db._initialized:  # Check if already initialized
+        return
+
     try:
         with sqlite3.connect(db_path) as conn:
             run_initialization(conn, drop_table, db_path)
         log.info(f"Таблица базы данных '{db_path}.schedules' успешно {'пересоздана' if drop_table else 'установлена'}")
+        init_db._initialized = True # Mark as initialized
     except sqlite3.Error as e:
         log.error(f"Ошибка инициализации БД '{db_path}': %s", str(e))
 

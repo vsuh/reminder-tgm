@@ -21,6 +21,9 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
         logging.Logger: Инициализированный логгер.
     """
     log = logging.getLogger(__name__) if name is None else logging.getLogger(name)
+    if log.handlers:  # Check if handlers are already added
+        return log # Logger already initialized, return it
+
     log.setLevel(logging.DEBUG)
 
     try:

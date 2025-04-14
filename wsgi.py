@@ -15,8 +15,6 @@ from flask import (Flask,jsonify, render_template, redirect, url_for, abort,
 APIPORT=7870
 # def create_app(environ=None, start_response=None, environment_name: str = None):
 def create_app(environment_name: str = None):
-    # print(f'DEBUG environ: {environ} type: {type(environ)} start_resp: {start_resp} type: {type(start_resp)}')
-
     # Load environment variables
     if environment_name is None:
         environment = get_environment_name()
