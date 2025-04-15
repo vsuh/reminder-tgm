@@ -9,7 +9,7 @@ from .utils import MyError, get_environment_name, init_log, load_env
 environment = get_environment_name()
 load_env(environment)
 
-DB_PATH = os.getenv("DB_PATH", "settings.db")
+# DB_PATH = os.getenv("DB_PATH", "settings.db")
 LOGPATH = os.getenv("LOGPATH", ".")
 LOGLEVEL = os.getenv("LOG_LEVEL", 'INFO').upper()
 
@@ -61,7 +61,7 @@ def run_initialization(conn, drop_table, db_path):
     cursor.execute(sql)
     conn.commit()
 
-def get_schedules(db_path=DB_PATH) -> list:
+def get_schedules(db_path) -> list:
     """
     Возвращает список расписаний из базы данных.
 
@@ -80,7 +80,7 @@ def get_schedules(db_path=DB_PATH) -> list:
         log.error("Ошибка при получении расписаний: %s", str(e))
         return []
 
-def get_schedule(schedule_id, db_path=DB_PATH) -> dict or None:
+def get_schedule(schedule_id, db_path) -> dict or None:
     """
     Возвращает расписание по его ID.
 
@@ -104,7 +104,7 @@ def get_schedule(schedule_id, db_path=DB_PATH) -> dict or None:
         log.error("Ошибка при получении расписания: %s", str(e))
         return []
 
-def add_schedule(cron, message, modifier, db_path=DB_PATH):
+def add_schedule(cron, message, modifier, db_path):
     """
     Добавляет новое расписание в базу данных.
 
@@ -123,7 +123,7 @@ def add_schedule(cron, message, modifier, db_path=DB_PATH):
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
 
-def delete_schedule(schedule_id, db_path=DB_PATH):
+def delete_schedule(schedule_id, db_path):
     """
     Удаляет расписание с id=schedule_id из базы данных.
 
@@ -140,7 +140,7 @@ def delete_schedule(schedule_id, db_path=DB_PATH):
     except sqlite3.Error as e:
         log.error("Ошибка при удалении расписания: %s", str(e))
 
-def update_last_fired(schedule_id, db_path=DB_PATH):
+def update_last_fired(schedule_id, db_path):
     """
     Обновляет поле last_fired для расписания с id=schedule_id.
 
@@ -158,7 +158,7 @@ def update_last_fired(schedule_id, db_path=DB_PATH):
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении last_fired: %s", str(e))
 
-def update_schedule(schedule_id, cron, message, modifier, db_path=DB_PATH) -> MyError or None:
+def update_schedule(schedule_id, cron, message, modifier, db_path) -> MyError or None:
     """
     Обновляет расписание в базе данных.
 
