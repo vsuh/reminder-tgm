@@ -31,7 +31,7 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
     except AttributeError:
         level = logging.INFO
 
-    handler2file = RotatingFileHandler(pt(log_path).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=5)
+    handler2file = RotatingFileHandler(pt(log_path).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=3)
     handler2file.setLevel(level)
     formatter = logging.Formatter('%(asctime)s - %(name)s@(%(module)s:%(lineno)d)- %(levelname)s - %(message)s')
     handler2file.setFormatter(formatter)
