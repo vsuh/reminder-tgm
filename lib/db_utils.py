@@ -29,7 +29,7 @@ def init_db(db_path=DB_PATH, drop_table=True):
     try:
         with sqlite3.connect(db_path) as conn:
             run_initialization(conn, drop_table, db_path)
-        log.info(f"Таблица базы данных '{db_path}.schedules' успешно {'пересоздана' if drop_table else 'установлена'}")
+        log.info(f"Таблицы базы данных '{db_path}.schedules,chats' успешно {'пересозданы' if drop_table else 'установлены'}")
         init_db._initialized = True # Mark as initialized
     except sqlite3.Error as e:
         log.error(f"Ошибка инициализации БД '{db_path}': %s", str(e))
@@ -56,9 +56,18 @@ def run_initialization(conn, drop_table, db_path):
                                 cron TEXT NOT NULL,
                                 message TEXT NOT NULL,
                                 modifier TEXT,
-                                last_fired TIMESTAMP
+                                last_fired TIMESTAMP,
+                                chat_id INTEGER,
+                                FOREIGN KEY (chat_id) REFERENCES chats(id)
                             )'''
     cursor.execute(sql)
+    conn.commit()
+    sql_chats = f'''CREATE TABLE {'' if drop_table else 'IF NOT EXISTS'}  chats (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                name TEXT NOT NULL UNIQUE,
+                                chat_id INTEGER NOT NULL UNIQUE
+                            )'''
+    cursor.execute(sql_chats)
     conn.commit()
 
 def get_schedules(db_path) -> list:
@@ -74,8 +83,8 @@ def get_schedules(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired FROM schedules")
-            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4]} for row in cursor.fetchall()]
+            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id FROM schedules")
+            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4], "chat_id": row[5]} for row in cursor.fetchall()]
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписаний: %s", str(e))
         return []
@@ -94,17 +103,17 @@ def get_schedule(schedule_id, db_path) -> dict or None:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired FROM schedules WHERE id = ?", (schedule_id,))
+            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id FROM schedules WHERE id = ?", (schedule_id,))
             row = cursor.fetchone()
             if row:
-                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4]}
+                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4], "chat_id": row[5]}
             else:
                 return None
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписания: %s", str(e))
         return []
 
-def add_schedule(cron, message, modifier, db_path):
+def add_schedule(cron, message, modifier, chat_id, db_path):
     """
     Добавляет новое расписание в базу данных.
 
@@ -112,14 +121,15 @@ def add_schedule(cron, message, modifier, db_path):
         cron (str): CRON выражение.
         message (str): Сообщение.
         modifier (str): Модификатор.
+        chat_id (int): ID чата.
         db_path (str): Путь к файлу базы данных.
     """
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO schedules (cron, message, modifier) VALUES (?, ?, ?)", (cron, message, modifier))
+            cursor.execute("INSERT INTO schedules (cron, message, modifier, chat_id) VALUES (?, ?, ?, ?)", (cron, message, modifier, chat_id))
             conn.commit()
-            log.info("Добавлено новое расписание: %s, %s, %s", cron, message, modifier)
+            log.info("Добавлено новое расписание: %s, %s, %s, %s", cron, message, modifier, chat_id)
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
 
@@ -139,6 +149,26 @@ def delete_schedule(schedule_id, db_path):
             log.info("Удалено расписание с ID: %d", schedule_id)
     except sqlite3.Error as e:
         log.error("Ошибка при удалении расписания: %s", str(e))
+
+def get_chats(db_path) -> list:
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, chat_id FROM chats")
+            return [{"id": row[0], "name": row[1], "chat_id": row[2]} for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        log.error("Ошибка при получении чатов: %s", str(e))
+        return []
+
+def add_chat(name, chat_id, db_path):
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO chats (name, chat_id) VALUES (?, ?)", (name, chat_id))
+            conn.commit()
+            log.info("Добавлен новый чат: %s, %s", name, chat_id)
+    except sqlite3.Error as e:
+        log.error("Ошибка при добавлении чата: %s", str(e))
 
 def update_last_fired(schedule_id, db_path):
     """

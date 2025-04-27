@@ -10,7 +10,7 @@ import pytz
 # from croniter import croniter
 
 from lib.cron_utils import VCron
-from lib.db_utils import update_last_fired
+from lib.db_utils import update_last_fired, get_chats
 from lib.utils import get_environment_name, init_log, load_env
 
 # Load environment variables
@@ -24,6 +24,7 @@ TIMEZONE = os.getenv("reminderTZ", "UTC")
 SCHEDULES_URL = "http://localhost:7878/schedules"
 LOGPATH = os.getenv("LOGPATH", ".")
 LOGLEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+DB_PATH = os.getenv("DB_PATH", "settings.db")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
@@ -31,7 +32,7 @@ log = init_log('rmndr', LOGPATH, LOGLEVEL)
 # Initialize VCron
 myVCron = VCron(TIMEZONE)
 
-def send_telegram_message(message):
+def send_telegram_message(message, chat_id):
     """
     Отправляет сообщение в Telegram.
 
@@ -39,11 +40,11 @@ def send_telegram_message(message):
         message (str): Текст сообщения.
     """
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
+    data = {"chat_id": chat_id, "text": message}
     try:
         response = requests.post(url, data=data)
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        log.debug("Сообщение успешно отправлено: %s", message)
+        log.debug(f"Сообщение успешно отправлено chat_id={chat_id}: {message}")
     except requests.exceptions.RequestException as e:
         log.error("Ошибка при отправке сообщения: %s, ошибка: %s", message, e)
 
@@ -64,6 +65,17 @@ def get_schedules() -> list:
         log.error(f"Ошибка при запросе к серверу расписаний: {e}")
         return []
 
+def get_chat_id(chat_id_from_schedule):
+    chats = get_chats(DB_PATH)
+    return next(
+        (
+            chat['chat_id']
+            for chat in chats
+            if chat['id'] == chat_id_from_schedule
+        ),
+        None,
+    )
+
 # Main script logic
 timezone = pytz.timezone(TIMEZONE)
 now = datetime.now(timezone)
@@ -79,8 +91,13 @@ if schedules := get_schedules():
 
         if myVCron.check_cron(cron_expr, now) and myVCron.check_modifier(modifier, now):
             log.info("Телеграфирую: %s", message)
-            send_telegram_message(message)
-            update_last_fired(record_key)
+            chat_id = get_chat_id(schedule["chat_id"])
+            if chat_id is None:
+                log.error(f"Не найден chat_id для schedule_id={record_key}")
+                continue # Skip to the next schedule
+
+            send_telegram_message(message, chat_id)
+            update_last_fired(record_key, DB_PATH)
             print(f"{now} уведомление по расписанию № {record_key}")
         else:
             log.debug(f"Сообщение не отправлено: {message} (не соответствует условиям CRON:{cron_expr}({modifier})")

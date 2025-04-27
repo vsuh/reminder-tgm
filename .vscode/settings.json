@@ -1,0 +1,8 @@
+{
+    "cSpell.language": "ru,en",
+    "cSpell.enabled": false,
+    "python.venvPath": ["${workspaceFolder}/.venv"],
+    "python.terminal.activateEnvironment": true
+  
+
+}
