@@ -1,0 +1,14 @@
+[Unit]
+Description=Telegram Cron Reminder Background Script
+After=network.target
+
+[Service]
+User=your_user # Замените на вашего пользователя
+Group=your_group # Замените на вашу группу
+WorkingDirectory=/path/to/your/project # Путь к вашему проекту
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/bin/bash -c "source /path/to/your/venv/bin/activate; python rund.py"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
