@@ -330,7 +330,6 @@ def create_app(environment_name: str = None):
     return app
 
 def application(environ, start_response):
-    app = create_app()
     return app(environ, start_response)
 
 

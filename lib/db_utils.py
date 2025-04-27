@@ -9,7 +9,7 @@ from .utils import MyError, get_environment_name, init_log, load_env
 environment = get_environment_name()
 load_env(environment)
 
-# DB_PATH = os.getenv("DB_PATH", "settings.db")
+DB_PATH = os.getenv("DB_PATH", "settings.db")
 LOGPATH = os.getenv("LOGPATH", ".")
 LOGLEVEL = os.getenv("LOG_LEVEL", 'INFO').upper()
 
