@@ -3,13 +3,18 @@ Description=Telegram Cron Reminder Web App
 After=network.target
 
 [Service]
+Type=simple
 User=your_user # Замените на вашего пользователя
 Group=your_group # Замените на вашу группу
 WorkingDirectory=/path/to/your/project # Путь к вашему проекту
+ExecStart=/opt/TELEGRAM-CRON/web_prod.sh
+Restart=always
+Environment="ROOT=/opt/TELEGRAM-CRON"
 Environment="FLASK_APP=wsgi:app"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=/bin/bash -c "source /path/to/your/venv/bin/activate; gunicorn --workers 3 --bind 0.0.0.0:7878 wsgi:app" # Или waitress-serve --port=7878 wsgi:app
-Restart=always
+
 
 [Install]
 WantedBy=multi-user.target
+
+

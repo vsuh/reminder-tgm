@@ -24,7 +24,6 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
     if log.handlers:  # Check if handlers are already added
         return log # Logger already initialized, return it
 
-    log.setLevel(logging.DEBUG)
 
     try:
         level = getattr(logging, log_level.upper())

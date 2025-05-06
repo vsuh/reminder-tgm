@@ -19,15 +19,21 @@
                     <th scope="col">ID</th>
                     <th scope="col">Название</th>
                     <th scope="col">Chat ID</th>
+                    <th scope="col">Действия</th>
                 </tr>
-            </thead>
+           </thead>
             <tbody>
                 {% for chat in chats %}
                 <tr>
                     <td>{{ chat.id }}</td>
                     <td>{{ chat.name }}</td>
                     <td>{{ chat.chat_id }}</td>
-                </tr>
+                    <td>
+                        <a href="{{ url_for('delete_this_chat', chat_id=chat.id) }}" class="btn btn-danger btn-sm" title="Удалить" onclick="return confirm('Удалить этот чат?   Связанные расписания тоже будут удалены!');">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    </td>
+               </tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -42,7 +48,11 @@
                 <label for="chat_id" class="form-label">Chat ID:</label>
                 <input type="text" class="form-control" id="chat_id" name="chat_id" required>
             </div>
-            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Добавить</button>
+            <button type="submit" class="btn btn-warning"><i class="fas fa-plus"></i> Добавить</button>
+            <a href="/" class="btn btn-primary">
+                <i class="fas fa-backward fa-xl" style="color: #FFD43B;"></i>&nbsp;
+                Вернуться к списку расписаний</a>
+         
         </form>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

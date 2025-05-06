@@ -15,7 +15,14 @@
 
 ### Зависимости
 
-Управление зависимостями осуществляется с помощью файлов `requirements/*.txt`.  Основные зависимости:
+Управление зависимостями осуществляется с помощью файлов `requirements/*.txt`.  
+
+```bash
+pip install -r [requirements/web.txt](requirements/web.txt)
+pip install -r [requirements/rund.txt](requirements/rund.txt)
+```
+
+Основные зависимости:
 
 - **Flask:**  Фреймворк для веб-приложения.
 - **python-dotenv:**  Для загрузки переменных окружения.
@@ -40,10 +47,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-- Скопируйте файл .env.example в .env и настройте переменные окружения:
+- Скопируйте файл [.env.example](env/.env.example) в .env и настройте переменные окружения:
 
 ```sh
-cp env/.env.example .env
+cp env/.env.example env/.env
 # Редактируйте .env с вашими значениями
 ```
 
@@ -85,7 +92,6 @@ docker-compose up -d
 
 - d/n: Срабатывает каждые n дней.
 - w/n: Срабатывает каждые n недель, начиная с понедельника.
-- m/n: Срабатывает каждые n месяцев.
 - YYYYMMDD>: Указывает начальную дату для отсчета. Например, 20240301>d/3 будет срабатывать каждые 3 дня, начиная с 1 марта 2024 года.
 
 ## Пример импорта данных
@@ -99,14 +105,13 @@ curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @da
 Пример файла .env
 
 ```ini
-TELEGRAM_TOKEN=ваш_токен
-TELEGRAM_CHAT_ID=ваш_id_чата
-reminderTZ=Europe/Moscow
-DB_PATH=settings.db
-LOGPATH=log
-LOG_LEVEL=INFO
-PORT=7878
-FLASK_PORT=7878
-SECRET_KEY=ваш_секретный_ключ
+TLCR_TELEGRAM_TOKEN=ваш_токен
+TLCR_TELEGRAM_CHAT_ID=ваш_id_чата
+TLCR_TZ=Europe/Moscow
+TLCR_DB_PATH=settings.db
+TLCR_LOGPATH=log
+TLCR_LOG_LEVEL=INFO
+TLCR_SECRET_KEY=ваш_секретный_ключ
+TLCR_LIST_ITEMS=10
 ```
 

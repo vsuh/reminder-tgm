@@ -9,8 +9,9 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, a
 from lib.cron_utils import VCron
 from lib.db_utils import (DB_PATH, LOGLEVEL, LOGPATH, add_schedule,
                          delete_schedule, get_schedule, get_schedules, init_db,
-                         init_log, update_schedule, add_chat, get_chats)
+                         init_log, update_schedule, add_chat, get_chats, delete_chat)
 from lib.utils import MyError, get_environment_name, load_env as load_utils_env
+
 
 
 class WebApp:
@@ -25,6 +26,7 @@ class WebApp:
         
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("CHAT_ID")
+        self.app.config["SECRET_KEY"] = os.getenv("TLCR_SECRET_KEY", os.urandom(12).hex())
         
     def load_env(self, env_file):
         env = get_environment_name()
@@ -32,8 +34,8 @@ class WebApp:
         if env_file:
             load_dotenv(dotenv_path=env_file, override=True)
 
-        self.db_path = os.getenv("DB_PATH", DB_PATH)
-        self.timezone = os.getenv("reminderTZ", "UTC")
+        self.db_path = DB_PATH
+        self.timezone = os.getenv("TLCR_TZ", "UTC")
 
     def _validate_schedule_data(self, data):
         if not data or "cron" not in data or "message" not in data:
@@ -64,6 +66,8 @@ class WebApp:
                     self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message}) # Validate data
                     chat_id = request.form.get("chat_id") or self.app.config["def_chat_id"]
 
+                    if not chat_id:
+                        abort(400,"Не выбран чат для напоминания. Сначала добавьте чат и выберите его.")
                     add_schedule(cron, message, modifier, int(chat_id), self.db_path)
                 except ValueError as e:
                     return render_template("error.html", text=str(e)), 400
@@ -193,7 +197,7 @@ class WebApp:
             """
             Отображает список следующих запусков расписания.
             """
-            NEXT = 10
+            NEXT = int(os.getenv("TLCR_LIST_ITEMS", "10"))
             schedule = get_schedule(schedule_id, self.db_path)
             if schedule is None:
                 abort(404)
@@ -207,8 +211,9 @@ class WebApp:
                 next_match = self.myVCron.get_next_match(cron_expression, modifier, start_time=current_time)
                 if next_match is None:
                     break
+
                 next_dates.append(next_match.isoformat())
-                current_time = next_match + timedelta(seconds=1)
+                current_time = next_match + timedelta(hours=1)
 
             return render_template("list.html", next_dates=next_dates, schedule=schedule)
 
@@ -229,6 +234,18 @@ class WebApp:
             chats = get_chats(self.db_path)
             return render_template("chats.html", chats=chats)
 
+        @self.app.route('/chats/delete/<int:chat_id>', methods=['GET'])
+        def delete_this_chat(chat_id :int):
+            """
+            Удаляет чат по ID.
+            """
+            try:
+                delete_chat(chat_id, self.db_path)
+            except Exception as e:
+                self.log.error(f"Ошибка при удалении чата: {e}")
+                return render_template("error.html", text=f"Ошибка при удалении чата: {e}"), 500
+            return redirect(url_for("chats_view"))
+        
         @self.app.route('/export', methods=['GET'])
         def export_json():
             """
@@ -274,7 +291,7 @@ class WebApp:
             """
             Фильтр Jinja2 для форматирования строки даты и времени.
             """
-            return dt.strftime('%Y-%m-%d %H:%M') if dt else "##"
+            return dt.strftime('%Y-%m-%d %H:%M %a') if dt else "##"
 
 
     def run(self):

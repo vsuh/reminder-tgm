@@ -14,11 +14,9 @@ environment = get_environment_name()
 load_env(environment)
 
 # Переменные окружения
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-TIMEZONE = os.getenv("reminderTZ", "UTC")
-LOGPATH = os.getenv("LOGPATH", ".")
-LOGLEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
+TIMEZONE = os.getenv("TLCR_TZ", "UTC")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)

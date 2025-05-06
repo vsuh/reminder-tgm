@@ -9,12 +9,14 @@ from .utils import MyError, get_environment_name, init_log, load_env
 environment = get_environment_name()
 load_env(environment)
 
-DB_PATH = os.getenv("DB_PATH", "settings.db")
-LOGPATH = os.getenv("LOGPATH", ".")
-LOGLEVEL = os.getenv("LOG_LEVEL", 'INFO').upper()
+DB_PATH = os.getenv("TLCR_DB_PATH", "settings.db")
+LOGPATH = os.getenv("TLCR_LOGPATH", ".")
+LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", 'INFO').upper()
 
 log = init_log('db_utils', LOGPATH, LOGLEVEL)
 
+# print('***', LOGLEVEL,'***',os.getenv("TLCR_LOG_LEVEL"), '000'),
+ 
 def init_db(db_path=DB_PATH, drop_table=True):
     """
     Инициализирует базу данных SQLite.  Выполняет инициализацию только один раз.
@@ -34,6 +36,11 @@ def init_db(db_path=DB_PATH, drop_table=True):
     except sqlite3.Error as e:
         log.error(f"Ошибка инициализации БД '{db_path}': %s", str(e))
 
+def run_create_table(arg1, cursor, conn):
+    sql = f'''CREATE TABLE {arg1}'''
+    cursor.execute(sql)
+    conn.commit()
+
 def run_initialization(conn, drop_table, db_path):
     """
     Выполняет инициализацию базы данных.
@@ -51,24 +58,30 @@ def run_initialization(conn, drop_table, db_path):
         cursor.execute('DROP TABLE schedules;')
         conn.commit()
         log.info(f'удалена таблица "schedules" из БД "{db_path}"')
-    sql = f'''CREATE TABLE {'' if drop_table else 'IF NOT EXISTS'} schedules (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                cron TEXT NOT NULL,
-                                message TEXT NOT NULL,
-                                modifier TEXT,
-                                last_fired TIMESTAMP,
-                                chat_id INTEGER,
-                                FOREIGN KEY (chat_id) REFERENCES chats(id)
-                            )'''
-    cursor.execute(sql)
-    conn.commit()
-    sql_chats = f'''CREATE TABLE {'' if drop_table else 'IF NOT EXISTS'}  chats (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                name TEXT NOT NULL UNIQUE,
-                                chat_id INTEGER NOT NULL UNIQUE
-                            )'''
-    cursor.execute(sql_chats)
-    conn.commit()
+
+    run_create_table(
+        f'''{'' if drop_table else 'IF NOT EXISTS'} schedules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cron TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        modifier TEXT,
+                        last_fired TIMESTAMP,
+                        chat_id INTEGER NOT NULL,
+                        FOREIGN KEY (chat_id) REFERENCES chats(id)
+                    )''',
+        cursor,
+        conn,
+    )
+    run_create_table(
+        f'''{"" if drop_table else "IF NOT EXISTS"}  chats (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE,
+                        chat_id INTEGER NOT NULL UNIQUE
+                    )''',
+        cursor,
+        conn,
+    )
+
 
 def get_schedules(db_path) -> list:
     """
@@ -127,11 +140,19 @@ def add_schedule(cron, message, modifier, chat_id, db_path):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
+            # Проверяем, есть ли записи в таблице chats
+            cursor.execute("SELECT COUNT(*) FROM chats")
+            chats_count = cursor.fetchone()[0]
+            if chats_count == 0:
+                raise MyError("Нельзя добавить расписание: таблица chats пуста. Сначала добавьте хотя бы один чат.")
             cursor.execute("INSERT INTO schedules (cron, message, modifier, chat_id) VALUES (?, ?, ?, ?)", (cron, message, modifier, chat_id))
             conn.commit()
             log.info("Добавлено новое расписание: %s, %s, %s, %s", cron, message, modifier, chat_id)
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
+    except MyError as me:
+        log.error(str(me))
+        raise
 
 def delete_schedule(schedule_id, db_path):
     """
@@ -169,6 +190,23 @@ def add_chat(name, chat_id, db_path):
             log.info("Добавлен новый чат: %s, %s", name, chat_id)
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении чата: %s", str(e))
+
+def delete_chat(chat_id, db_path):
+    """
+    Удаляет чат по ID и все связанные с ним расписания.
+    """
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            # Сначала удаляем все связанные расписания
+            cursor.execute("DELETE FROM schedules WHERE chat_id = ?", (chat_id,))
+            # Затем удаляем сам чат
+            cursor.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+            conn.commit()
+            log.info("Удалён чат с ID: %s и все связанные с ним расписания", chat_id)
+    except sqlite3.Error as e:
+        log.error("Ошибка при удалении чата: %s", str(e))
+        raise MyError(f"Ошибка при удалении чата: {e}")
 
 def update_last_fired(schedule_id, db_path):
     """

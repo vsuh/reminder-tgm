@@ -18,13 +18,13 @@ environment = get_environment_name()
 load_env(environment)
 
 # Переменные окружения
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-TIMEZONE = os.getenv("reminderTZ", "UTC")
+TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
+TIMEZONE = os.getenv("TLCR_TZ", "UTC")
 SCHEDULES_URL = "http://localhost:7878/schedules"
-LOGPATH = os.getenv("LOGPATH", ".")
-LOGLEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-DB_PATH = os.getenv("DB_PATH", "settings.db")
+LOGPATH = os.getenv("TLCR_LOGPATH", ".")
+LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", "INFO").upper()
+DB_PATH = os.getenv("TLCR_DB_PATH", "settings.db")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
