@@ -155,12 +155,19 @@ class WebApp:
             Изменяет расписание с ID=schedule_id.
             """
             data = request.get_json()
-            if not data or "cron" not in data or "message" not in data:
+            if not data or "cron" not in data or "message" not in data or "chat_id" not in data:
                 abort(400, description="Неверный формат данных")
 
             try:
                 self._validate_schedule_data(data) # Validate data
-                update_schedule(schedule_id, data["cron"], data["message"], data.get("modifier", ""), self.db_path)
+                update_schedule(
+                    schedule_id,
+                    data["cron"],
+                    data["message"],
+                    data.get("modifier", ""),
+                    int(data["chat_id"]),
+                    self.db_path
+                )
                 return jsonify({"status": "success"}), 200
             except ValueError as e:
                 abort(400, description=str(e))
@@ -189,7 +196,7 @@ class WebApp:
 
             try:
                 self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message}) # Validate data
-                update_schedule(schedule_id, cron, message, modifier, self.db_path)
+                update_schedule(schedule_id, cron, message, modifier, int(chat_id), self.db_path)
             except ValueError as e:
                 return render_template("error.html", text=str(e)), 400
             return redirect(url_for("schedules_view"))

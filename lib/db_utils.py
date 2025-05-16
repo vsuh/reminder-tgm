@@ -226,7 +226,7 @@ def update_last_fired(schedule_id, db_path):
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении last_fired: %s", str(e))
 
-def update_schedule(schedule_id, cron, message, modifier, db_path) -> MyError or None:
+def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path) -> MyError or None:
     """
     Обновляет расписание в базе данных.
 
@@ -235,6 +235,7 @@ def update_schedule(schedule_id, cron, message, modifier, db_path) -> MyError or
         cron (str): CRON выражение.
         message (str): Сообщение.
         modifier (str): Модификатор.
+        chat_id (int): ID чата.
         db_path (str): Путь к файлу базы данных.
 
     Returns:
@@ -243,10 +244,12 @@ def update_schedule(schedule_id, cron, message, modifier, db_path) -> MyError or
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE schedules SET cron = ?, message = ?, modifier = ? WHERE id = ?", (cron, message, modifier, schedule_id))
+            cursor.execute(
+                "UPDATE schedules SET cron = ?, message = ?, modifier = ?, chat_id = ? WHERE id = ?",
+                (cron, message, modifier, chat_id, schedule_id)
+            )
             conn.commit()
             log.info("Обновлено расписание с ID: %d", schedule_id)
         return None
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении расписания: %s", str(e))
-
