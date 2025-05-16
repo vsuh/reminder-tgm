@@ -3,27 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>Редактирование расписания</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" integrity="sha384-B0vP5xmATw1+K9KRQjQVrC7SBLy9XXWpI1NkkNzctZBYOYphXMeBgnU9ZwJBADn" crossorigin="anonymous">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
 <div class="container mt-5">
-    <h1>Редактирование расписания</h1>
-    <form method="post">
-        <div class="form-group">
-            <label for="cron">CRON выражение:</label>
+    <h1 class="mb-4">Редактирование расписания</h1>
+    <form method="post" class="p-4 border rounded bg-light shadow-sm">
+        <div class="mb-3">
+            <label for="cron" class="form-label">CRON выражение:</label>
             <input type="text" class="form-control" id="cron" name="cron" value="{{ schedule.cron }}" required>
         </div>
-        <div class="form-group">
-            <label for="message">Сообщение:</label>
+        <div class="mb-3">
+            <label for="message" class="form-label">Сообщение:</label>
             <textarea class="form-control" id="message" name="message" rows="3" required>{{ schedule.message }}</textarea>
         </div>
-        <div class="form-group">
-            <label for="modifier">Модификатор:</label>
+        <div class="mb-3">
+            <label for="modifier" class="form-label">Модификатор:</label>
             <input type="text" class="form-control" id="modifier" name="modifier" value="{{ schedule.modifier }}">
         </div>
-        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
-        <a href="/" class="btn btn-secondary ml-2">Отмена</a>
+        <div class="mb-3">
+            <label for="chat_id" class="form-label">Чат:</label>
+            <select class="form-select" id="chat_id" name="chat_id" required>
+                {% for chat in chats %}
+                    <option value="{{ chat.id }}" {% if chat.id == schedule.chat_id %}selected{% endif %}>
+                        {{ chat.name }} (CHAT_ID: {{ chat.chat_id }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Сохранить изменения</button>
+            <a href="/" class="btn btn-secondary">Отмена</a>
+        </div>
     </form>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://use.fontawesome.com/releases/v6.1.0/js/all.js" crossorigin="anonymous"></script>
 </body>
 </html>
