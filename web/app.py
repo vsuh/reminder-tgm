@@ -175,13 +175,16 @@ class WebApp:
             if schedule is None:
                 abort(404)
 
+            chats = get_chats(self.db_path)
+
             if request.method == "GET":
-                return render_template("edit.html", schedule=schedule)
+                return render_template("edit.html", schedule=schedule, chats=chats)
 
             cron = request.form.get("cron")
             message = request.form.get("message")
             modifier = request.form.get("modifier", "")
-            if not cron or not message:
+            chat_id = request.form.get("chat_id")
+            if not cron or not message or not chat_id:
                 abort(400, description="Все поля должны быть заполнены")
 
             try:
