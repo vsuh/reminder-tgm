@@ -15,7 +15,7 @@
     <table class="table table-striped">
         <thead>
             <tr>
-                <th scope="col">CRON</th>
+                <th scope="col" title="Мин Час ДеньМесяца НомерМесяц ДеньНедели">CRON</th>
                 <th scope="col">Сообщение</th>
                 <th scope="col">Модификатор</th>
                 <th scope="col">Кому</th>
@@ -61,11 +61,13 @@
     <form method="post">
         <div class="form-group">
             <label for="cron">CRON выражение:</label>
-            <input type="text" class="form-control" id="cron" name="cron" required>
+            <div style="font-size: smaller; color: #999;"></div>
+            <input type="text" class="form-control" id="cron" name="cron" 
+            required placeholder="mm HH nD nM Ww">
         </div>
         <div class="form-group">
             <label for="message">Сообщение:</label>
-            <textarea class="form-control" id="message" name="message" rows="3" required></textarea>
+            <textarea class="form-control" id="message" name="message" rows="3" placeholder="Текст уведомления" required></textarea>
         </div>
         <div class="form-group">
             <label for="chat_id">Chat:</label>
@@ -78,7 +80,9 @@
 
         <div class="form-group">
             <label for="modifier">Модификатор:</label>
-            <input type="text" class="form-control" id="modifier" name="modifier">
+            <input type="text" class="form-control" id="modifier" name="modifier"
+            placeholder="[YYYYMMDD>]d|w/n"
+            >
         </div>
         <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i>&nbsp; Добавить</button>
         <a href="/chats" class="btn btn-primary"><i class="far fa-edit"></i>&nbsp; Управление чатами</a>
