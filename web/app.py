@@ -25,7 +25,7 @@ class WebApp:
         init_db(drop_table=False)
         
     def setup_app(self):
-        self.app.config["def_chat_id"] = os.getenv("CHAT_ID")
+        self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
         self.app.config["SECRET_KEY"] = os.getenv("TLCR_SECRET_KEY", os.urandom(12).hex())
         
     def load_env(self, env_file):

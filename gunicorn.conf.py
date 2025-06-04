@@ -7,7 +7,7 @@ environment = get_environment_name()
 load_env(environment)
 
 # Получение значений из переменных окружения
-PORT = os.getenv("PORT", "7878")
+PORT = os.getenv("TLCR_FLASK_PORT", "7878")
 WORKERS = os.getenv("GUNICORN_WORKERS", 2)
 TIMEOUT = os.getenv("GUNICORN_TIMEOUT", 120)
 
