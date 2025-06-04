@@ -18,7 +18,7 @@ source .venv/bin/activate
 
 pip install --no-cache -q -r requirements/rund.txt
 
-echo $(date)" Test log message" > /workspaces/cron-tg-docker/log/test.log
+echo "$(date) Test log message" >> /workspaces/cron-tg-docker/log/test.log
 
 #gunicorn -c gunicorn.conf.py \
 #         --access-logfile log/gunicorn-access.log \
