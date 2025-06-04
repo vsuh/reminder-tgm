@@ -22,7 +22,8 @@ touch ${TLCR_LOGPATH}/gunicorn-access.log ${TLCR_LOGPATH}/gunicorn-error.log
 chown -R appuser:appuser ${TLCR_LOGPATH}
 
 # Запускаем gunicorn с явными настройками логирования
-PYTHONUNBUFFERED=1 gunicorn \
+PYTHONUNBUFFERED=1 exec gunicorn -c gunicorn.conf.py ${FLASK_APP}
+
 #    --access-logfile ${TLCR_LOGPATH}/gunicorn-access.log \
 #    --error-logfile ${TLCR_LOGPATH}/gunicorn-error.log \
 #    --log-level debug \
@@ -31,4 +32,3 @@ PYTHONUNBUFFERED=1 gunicorn \
 #    -w 2 \
 #    -b 0.0.0.0:${FLASK_PORT} \
 #    ${FLASK_APP} 
-
