@@ -10,7 +10,7 @@ class MyError(Exception):
 
 def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> logging.Logger:
     """
-    
+
     Инициализирует логгер с обработчиками для файла и консоли.
 
     Args:
@@ -25,11 +25,13 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
     if log.handlers:  # Check if handlers are already added
         return log # Logger already initialized, return it
 
-
     try:
         level = getattr(logging, log_level.upper())
     except AttributeError:
         level = logging.INFO
+
+    # Устанавливаем уровень для самого логгера
+    log.setLevel(level)
 
     handler2file = RotatingFileHandler(pt(log_path).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=3)
     handler2file.setLevel(level)
@@ -38,6 +40,7 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
 
     handler2con = logging.StreamHandler()
     handler2con.setLevel(level)
+    handler2con.setFormatter(formatter)  # Добавляем форматирование для консольного вывода
 
     log.addHandler(handler2file)
     log.addHandler(handler2con)
