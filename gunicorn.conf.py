@@ -4,10 +4,10 @@ from pathlib import Path
 from lib.utils import get_environment_name, load_env
 
 
+environment = get_environment_name()
 if Path(".env").exists():
     load_env(".env")
 else:
-    environment = get_environment_name()
     load_env(environment)
 
 # Получение значений из переменных окружения
