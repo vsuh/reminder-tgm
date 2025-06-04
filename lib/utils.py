@@ -1,5 +1,6 @@
 import logging
 import os
+from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from pathlib import Path as pt
 
@@ -46,16 +47,16 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
 
 def load_env(environment: str = "dev"):
     """
-    Загружает переменные окружения из файла .env.
+    Загружает переменные окружения из файла .env
 
     Args:
         environment (str, optional): Имя окружения (например, "dev", "prod"). По умолчанию "dev".
     """
-    dotenv_path = f'env/.env.{environment}'
-    if not pt(dotenv_path).exists():
-        raise MyError(f"Файл {dotenv_path} не найден")
-    from dotenv import load_dotenv
-    load_dotenv(dotenv_path)
+    if not load_dotenv(dotenv_path=".env"):
+        dotenv_path = f'env/.env.{environment}'
+        if not pt(dotenv_path).exists():
+            raise MyError(f"Файл {dotenv_path} не найден")
+        load_dotenv(dotenv_path)
 
 def get_environment_name() -> str:
     """
