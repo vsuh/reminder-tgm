@@ -1,6 +1,12 @@
 #!/bin/bash
 
-source env/.env.dev
+if [ -d ./.env ]; then
+  source ./.env
+else
+  source env/.env.dev
+fi;
+
+
 export FLASK_APP=wsgi:app
 export FLASK_PORT=7878
 
