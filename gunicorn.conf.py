@@ -15,14 +15,14 @@ PORT = os.getenv("PORT", "7878")
 WORKERS = os.getenv("GUNICORN_WORKERS", 2)
 TIMEOUT = os.getenv("GUNICORN_TIMEOUT", 120)
 LOG_PATH = os.path.abspath(os.getenv("TLCR_LOGPATH", "log"))
-LOG_LEVEL = os.path.abspath(os.getenv("TLCR_LOG_LEVEL", "DEBUG"))
+LOG_LEVEL = os.getenv("TLCR_LOG_LEVEL", "DEBUG")
 
 # Отладочный вывод
 print(f"""
   >>>> Loading gunicorn config...
-  !>>> Environment: {environment}
-  !>>> Port: {PORT}
-  !>>> Logs dir: {LOG_PATH}
+  !>>> Envment: 	{environment}
+  !>>> Port: 		{PORT}
+  !>>> Logs dir: 	{LOG_PATH}
 """)
 
 # Настройки Gunicorn
@@ -43,7 +43,7 @@ enable_stdio_inheritance = True
 
 # Отладочный вывод
 print(f"""
-  )))) Access log: {accesslog}
-  )))) Error log: {errorlog}
-  )))) Log level: {loglevel}
+  )))) Access log: 	{accesslog}
+  )))) Error log: 	{errorlog}
+  )))) Log level: 	{loglevel}
 """)
