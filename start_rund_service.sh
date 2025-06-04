@@ -14,7 +14,7 @@ fi;
 
 source .venv/bin/activate
 
-pip install --no-cache  -r requirements/rund.txt
+pip install --no-cache -q -r requirements/rund.txt
 python run.py
 
 
