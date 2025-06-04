@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ -d ./.env ]; then
+if [ -f ./.env ]; then
   source ./.env
 else
   source env/.env.dev
