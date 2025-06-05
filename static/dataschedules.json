@@ -1,0 +1,11 @@
+[  {
+        "cron": "1 19 * * *",
+        "message": "note 1",
+        "modifier": "20250526>d/4"
+    },
+    {
+        "cron": "0 13 * * 5",
+        "message": "note 2",
+        "modifier": ""
+    }
+]

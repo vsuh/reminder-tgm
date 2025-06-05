@@ -96,7 +96,7 @@ docker-compose up -d
 
 ## Пример импорта данных
 
-Для первоначального заполнения расписаний можно использовать JSON файл, например, dataschedules.json:
+Для первоначального заполнения расписаний можно использовать JSON файл, например, [dataschedules.json](static/dataschedules.json):
 
 ```sh
 curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @dataschedules.json http://host:7878/schedules_all
