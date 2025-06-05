@@ -115,4 +115,11 @@ TLCR_SECRET_KEY=ваш_секретный_ключ
 TLCR_LIST_ITEMS=10
 TLCR_FLASK_PORT=7999
 ```
+## Скрипты
 
+- **start_rund_service.sh** - для запуска с помощью cron
+- **start_web_service.sh** - systemd приложение
+- **start.sh** - точка входа для docker контейнера
+- **web_prod.sh** - запуск веб-службы скриптом start.sh
+- **rund_prod.sh** - запуск службы проверки расписаний скриптом start.sh
+- **web.sh** - запуск вебслужбы в режиме отладки
