@@ -104,6 +104,6 @@ def main():
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
-#    CHECK_INTERVAL = 60 * 60  # 1 час в секундах
-    CHECK_INTERVAL = 5 * 60 
+# TODO: количество минут передавать через переменную среды TLCR_CHECK_MINUTES
+    CHECK_INTERVAL = 60 * 60  # 1 час в секундах
     main()
