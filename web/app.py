@@ -305,7 +305,7 @@ class WebApp:
 
 
     def run(self):
-        self.app.run(debug=os.getenv('DEBUG', 'False').lower() == 'true', port=int(os.getenv('PORT', 7878)), use_reloader=True)
+        self.app.run(debug=os.getenv('DEBUG', 'False').lower() == 'true', port=int(os.getenv('TLCR_FLASK_PORT', 7999)), use_reloader=True)
 
 web = WebApp()
 

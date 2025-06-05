@@ -11,7 +11,7 @@ else:
     load_env(environment)
 
 # Получение значений из переменных окружения
-PORT = os.getenv("PORT", "7878")
+PORT = os.getenv("TLCR_FLASK_PORT", "7999")
 WORKERS = os.getenv("GUNICORN_WORKERS", 2)
 TIMEOUT = os.getenv("GUNICORN_TIMEOUT", 120)
 LOG_PATH = os.path.abspath(os.getenv("TLCR_LOGPATH", "log"))

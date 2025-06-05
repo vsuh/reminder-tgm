@@ -74,13 +74,13 @@ cp env/.env.example env/.env
 docker-compose up -d
 ```
 
-Это запустит веб-приложение на порту 7878 и фоновый скрипт `rund.py`.
+Это запустит веб-приложение на порту 7999 и фоновый скрипт `rund.py`.
 
 ## Использование
 
 - Веб-интерфейс
 
-Доступ к веб-интерфейсу осуществляется по адресу http://localhost:7878 (или по адресу, указанному в .env). Вы можете добавлять, редактировать и удалять расписания, а также управлять чатами Telegram через веб-интерфейс.
+Доступ к веб-интерфейсу осуществляется по адресу http://host:7878 (или по адресу, указанному в .env). Вы можете добавлять, редактировать и удалять расписания, а также управлять чатами Telegram через веб-интерфейс.
 
 ## API
 
@@ -99,7 +99,7 @@ docker-compose up -d
 Для первоначального заполнения расписаний можно использовать JSON файл, например, dataschedules.json:
 
 ```sh
-curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @dataschedules.json http://localhost:7878/schedules_all
+curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @dataschedules.json http://host:7878/schedules_all
 ```
 
 Пример файла .env
@@ -113,5 +113,6 @@ TLCR_LOGPATH=log
 TLCR_LOG_LEVEL=INFO
 TLCR_SECRET_KEY=ваш_секретный_ключ
 TLCR_LIST_ITEMS=10
+TLCR_FLASK_PORT=7999
 ```
 

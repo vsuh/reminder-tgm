@@ -21,7 +21,8 @@ load_env(environment)
 TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("TLCR_TZ", "UTC")
-SCHEDULES_URL = "http://localhost:7878/schedules"
+PORT = os.getenv("TLCR_FLASK_PORT", "7999")
+SCHEDULES_URL = f"http://localhost:{PORT}/schedules"
 LOGPATH = os.getenv("TLCR_LOGPATH", ".")
 LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", "INFO").upper()
 DB_PATH = os.getenv("TLCR_DB_PATH", "settings.db")
