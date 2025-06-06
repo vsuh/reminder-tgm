@@ -4,9 +4,15 @@ import requests
 import pytz
 from datetime import datetime
 import multiprocessing
+import shutil
+import subprocess
+from pathlib import Path
 
 from lib.cron_utils import VCron
-from lib.db_utils import update_last_fired, get_chats, get_schedules as db_get_schedules, DB_PATH, LOGPATH, LOGLEVEL
+from lib.db_utils import (
+    update_last_fired, get_chats, get_schedules as db_get_schedules,
+    DB_PATH, LOGPATH, LOGLEVEL, backup_database
+)
 from lib.utils import get_environment_name, init_log, load_env
 
 # Load environment variables
@@ -17,7 +23,9 @@ load_env(environment)
 TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("TLCR_TZ", "UTC")
-CHECK_MINUTES = int(os.getenv("TLCR_CHECK_MINUTES", "60"))  # По умолчанию 60 минут
+CHECK_MINUTES = int(os.getenv("TLCR_CHECK_MINUTES", "60"))
+BACKUP_HOURS = int(os.getenv("TLCR_BACKUP_INTERVAL", "24"))
+BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "/static/db.bak")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
@@ -84,10 +92,22 @@ def main():
     """Основная функция скрипта."""
     timezone = pytz.timezone(TIMEZONE)
     myVCron = VCron(TIMEZONE)
+    last_backup_time = time.time()  # Время последнего бэкапа
 
     while True:
         now = datetime.now(timezone)
         log.info(f"Проверка расписаний ({now.strftime('%d-%m-%Y %H:%M:%S')})")
+
+        # Проверяем необходимость создания резервной копии
+        current_time = time.time()
+        work_time = int(current_time - last_backup_time)
+        if work_time >= BACKUP_HOURS * 3600 or work_time == 0:
+            try:
+                backup_database(backup_dir=BACKUP_DIR,db_path=DB_PATH)
+                last_backup_time = current_time
+                log.info(f"Создана резервная копия БД {DB_PATH} в {BACKUP_DIR}")
+            except Exception as e:
+                log.error(f"Ошибка при создании резервной копии: {e}")
 
         if schedules := db_get_schedules(DB_PATH):
             processes = []

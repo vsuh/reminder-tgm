@@ -174,5 +174,5 @@ cython_debug/
 .pypirc
 
 # Database files
-*.db
-*.db-*
+**/*.db
+**/*.db-*
