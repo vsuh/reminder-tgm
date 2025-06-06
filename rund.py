@@ -17,6 +17,7 @@ load_env(environment)
 TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("TLCR_TZ", "UTC")
+CHECK_MINUTES = int(os.getenv("TLCR_CHECK_MINUTES", "60"))  # По умолчанию 60 минут
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
@@ -104,6 +105,5 @@ def main():
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
-# TODO: количество минут передавать через переменную среды TLCR_CHECK_MINUTES
-    CHECK_INTERVAL = 60 * 60  # 1 час в секундах
+    CHECK_INTERVAL = CHECK_MINUTES * 60  # Конвертируем минуты в секунды
     main()
