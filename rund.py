@@ -4,8 +4,6 @@ import requests
 import pytz
 from datetime import datetime
 import multiprocessing
-import shutil
-import subprocess
 from pathlib import Path
 
 from lib.cron_utils import VCron

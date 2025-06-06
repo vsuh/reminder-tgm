@@ -2,10 +2,7 @@ import os
 import json
 import tempfile
 from datetime import datetime, timedelta
-
-from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, redirect, url_for, abort, send_file
-
 from lib.cron_utils import VCron
 from lib.db_utils import (DB_PATH, LOGLEVEL, LOGPATH, add_schedule,
                          delete_schedule, get_schedule, get_schedules, init_db,

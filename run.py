@@ -1,13 +1,11 @@
 """
 Отправляет уведомление в Telegram, если находит подходящее в БД
 """
-# import json
 import os
 from datetime import datetime
 
 import requests
 import pytz
-# from croniter import croniter
 
 from lib.cron_utils import VCron
 from lib.db_utils import update_last_fired, get_chats
