@@ -131,6 +131,7 @@ celerybeat.pid
 .env
 .venv
 env/
+!env/.env.SAMPLE
 venv/
 ENV/
 env.bak/
@@ -174,5 +175,5 @@ cython_debug/
 .pypirc
 
 # Database files
-*.db
-*.db-*
+**/*.db
+**/*.db-*

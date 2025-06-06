@@ -2,6 +2,7 @@ import logging
 import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 
 from .utils import MyError, get_environment_name, init_log, load_env
 
@@ -12,11 +13,11 @@ load_env(environment)
 DB_PATH = os.getenv("TLCR_DB_PATH", "settings.db")
 LOGPATH = os.getenv("TLCR_LOGPATH", ".")
 LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", 'INFO').upper()
+BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "/static/db.bak")
 
 log = init_log('db_utils', LOGPATH, LOGLEVEL)
 
-# print('***', LOGLEVEL,'***',os.getenv("TLCR_LOG_LEVEL"), '000'),
- 
+
 def init_db(db_path=DB_PATH, drop_table=True):
     """
     Инициализирует базу данных SQLite.  Выполняет инициализацию только один раз.
@@ -253,3 +254,43 @@ def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path) -> M
         return None
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении расписания: %s", str(e))
+
+def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
+    """
+    Создает резервную копию базы данных 
+    и удаляет старые копии, оставляя только 3 последних
+
+    Args:
+        db_path (str): Путь к файлу базы данных
+        backup_dir (str): Путь к директории для резервных копий
+    """
+    backup_path = Path(backup_dir)
+    backup_path.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = backup_path / f"settings_{timestamp}.db"
+
+    try:
+        with sqlite3.connect(db_path) as source:
+            with sqlite3.connect(str(backup_file)) as backup:
+                source.backup(backup)
+                log.info(f"Создана резервная копия БД: {backup_file}")
+
+        # Удаление старых бэкапов, оставляем только 3 последних
+        backup_files = sorted(
+            list(backup_path.glob("settings_*.db")),
+            key=lambda x: x.stat().st_mtime,
+            reverse=True,
+        )
+
+        # Удаляем все файлы, кроме трех последних
+        for old_backup in backup_files[3:]:
+            try:
+                old_backup.unlink()
+                log.info(f"Удалена старая резервная копия: {old_backup}")
+            except Exception as e:
+                log.warning(f"Не удалось удалить старую резервную копию {old_backup}: {e}")
+
+    except sqlite3.Error as e:
+        log.error(f"Ошибка при создании резервной копии БД: {e}")
+        raise MyError(f"Ошибка при создании резервной копии БД: {e}")
