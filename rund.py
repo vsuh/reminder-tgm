@@ -5,6 +5,7 @@ import pytz
 from datetime import datetime
 import multiprocessing
 from pathlib import Path
+import json
 
 from lib.cron_utils import VCron
 from lib.db_utils import (
@@ -31,6 +32,55 @@ log = init_log('rmndr', LOGPATH, LOGLEVEL)
 # Initialize VCron
 myVCron = VCron(TIMEZONE)
 
+def get_message_from_json(message: str) -> str:
+    """
+    Если сообщение имеет формат '#!/path/to/file.json',
+    пытается загрузить JSON файл и найти сообщение для текущей даты.
+    
+    Args:
+        message (str): Исходное сообщение в формате '#!/path/to/file.json'
+        
+    Returns:
+        str: Текст сообщения для отправки
+    """
+    if not message.startswith('#!'):
+        return message
+        
+    try:
+        # Получаем путь к файлу после #!
+        json_path = message[2:].strip()
+        if not os.path.isfile(json_path):
+            log.error(f"Файл {json_path} не найден")
+            return message
+            
+        with open(json_path, 'r', encoding='utf-8') as f:
+            messages = json.load(f)
+            
+        if not isinstance(messages, list):
+            log.error(f"Содержимое файла {json_path} должно быть массивом")
+            return message
+            
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Ищем сообщение для сегодняшней даты
+        for item in messages:
+            if not isinstance(item, dict) or 'date' not in item or 'text' not in item:
+                continue
+                
+            if item['date'] == today:
+                log.debug(f"Найдено сообщение для даты {today} в файле {json_path}")
+                return item['text']
+                
+        log.warning(f"В файле {json_path} не найдено сообщение для даты {today}")
+        return message
+            
+    except json.JSONDecodeError as e:
+        log.error(f"Ошибка при разборе JSON файла {json_path}: {e}")
+        return message
+    except Exception as e:
+        log.error(f"Непредвиденная ошибка при обработке файла {json_path}: {e}")
+        return message
+
 def send_telegram_message(message, chat_id):
     """
     Отправляет сообщение в Telegram.
@@ -39,14 +89,20 @@ def send_telegram_message(message, chat_id):
         message (str): Текст сообщения.
         chat_id (int): ID чата Telegram.
     """
+    # Обрабатываем сообщение, если оно начинается с #!
+    actual_message = get_message_from_json(message)
+    # Добавляем текущую дату перед сообщением
+    today = datetime.now().strftime('%d-%m-%Y')
+    formatted_message = f"{today}\n{actual_message}"
+     
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": chat_id, "text": message}
+    data = {"chat_id": chat_id, "text": formatted_message}
     try:
         response = requests.post(url, data=data)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        log.debug(f"Сообщение успешно отправлено chat_id={chat_id}: {message}")
+        response.raise_for_status()
+        log.debug(f"Сообщение успешно отправлено chat_id={chat_id}: {formatted_message}")
     except requests.exceptions.RequestException as e:
-        log.error("Ошибка при отправке сообщения: %s, ошибка: %s", message, e)
+        log.error("Ошибка при отправке сообщения: %s, ошибка: %s", formatted_message, e)
 
 
 def get_chat_id(chat_id_from_schedule):
