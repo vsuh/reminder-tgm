@@ -105,7 +105,6 @@ def main():
             try:
                 backup_database(backup_dir=BACKUP_DIR,db_path=DB_PATH)
                 last_backup_time = current_time
-                log.info(f"Создана резервная копия БД {DB_PATH} в {BACKUP_DIR}")
             except Exception as e:
                 log.error(f"Ошибка при создании резервной копии: {e}")
 

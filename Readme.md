@@ -47,17 +47,17 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-- Скопируйте файл [.env.example](env/.env.example) в .env и настройте переменные окружения:
+- Скопируйте файл `env/.env.SAMPLE` в `.env` и настройте переменные окружения:
 
 ```sh
-cp env/.env.example env/.env
-# Редактируйте .env с вашими значениями
+cp env/.env.SAMPLE .env
+# Отредактируйте .env, заменив значения по умолчанию на ваши
 ```
 
 - Запустите веб-приложение:
 
 ```sh
-./web.sh
+./web_prod.sh
 ```
 
 - Запустите фоновый скрипт в режиме разработки (в отдельном терминале):
@@ -68,10 +68,10 @@ cp env/.env.example env/.env
 
 - Запуск в Docker
 
-Соберите и запустите Docker контейнеры:
+Соберите и запустите Docker контейнер:
 
 ```sh
-docker-compose up -d
+docker-compose up -d --build
 ```
 
 Это запустит веб-приложение на порту 7999 и фоновый скрипт `rund.py`.
@@ -102,19 +102,45 @@ docker-compose up -d
 curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @dataschedules.json http://host:7878/schedules_all
 ```
 
-Пример файла .env
+## Переменные окружения
 
-```ini
-TLCR_TELEGRAM_TOKEN=ваш_токен
-TLCR_TELEGRAM_CHAT_ID=ваш_id_чата
-TLCR_TZ=Europe/Moscow
-TLCR_DB_PATH=settings.db
-TLCR_LOGPATH=log
-TLCR_LOG_LEVEL=INFO
-TLCR_SECRET_KEY=ваш_секретный_ключ
-TLCR_LIST_ITEMS=10
-TLCR_FLASK_PORT=7999
-```
+Для работы приложения необходимо настроить следующие переменные окружения:
+
+### Настройки Telegram бота
+- `TLCR_TELEGRAM_TOKEN` - токен вашего бота, полученный у @BotFather
+- `TLCR_TELEGRAM_CHAT_ID` - ID чата/группы для отправки сообщений
+
+### Настройки времени
+- `TLCR_TZ` - временная зона сервера (например, "Europe/Moscow")
+
+### Настройки базы данных
+- `TLCR_DB_PATH` - путь к файлу БД (по умолчанию "db/settings.db")
+- `TLCR_BACKUP_PATH` - путь для хранения резервных копий БД
+- `TLCR_BACKUP_INTERVAL` - интервал создания резервных копий в часах
+
+### Настройки логирования
+- `TLCR_LOGPATH` - директория для хранения логов
+- `TLCR_LOG_LEVEL` - уровень логирования (DEBUG, INFO, WARNING, ERROR)
+
+### Настройки веб-интерфейса
+- `TLCR_SECRET_KEY` - секретный ключ для Flask (обязательно измените в production)
+- `TLCR_LIST_ITEMS` - количество элементов на странице
+- `TLCR_FLASK_PORT` - порт для веб-интерфейса
+
+### Настройки планировщика
+- `TLCR_CHECK_MINUTES` - интервал проверки расписаний в минутах
+
+### Настройки режима работы
+- `FLASK_ENV` - режим работы Flask (development/production)
+- `FLASK_DEBUG` - режим отладки (0/1)
+
+Пример файла конфигурации можно найти в `.env.SAMPLE`. Для production-окружения рекомендуется:
+- Использовать абсолютные пути для файлов и директорий
+- Отключить режим отладки (`FLASK_DEBUG=0`)
+- Установить `FLASK_ENV=production`
+- Использовать надёжный секретный ключ
+- Настроить соответствующий уровень логирования
+
 ## Скрипты
 
 - **start_rund_service.sh** - для запуска с помощью cron

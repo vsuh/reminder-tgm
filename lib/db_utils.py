@@ -17,8 +17,7 @@ BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "/static/db.bak")
 
 log = init_log('db_utils', LOGPATH, LOGLEVEL)
 
-# print('***', LOGLEVEL,'***',os.getenv("TLCR_LOG_LEVEL"), '000'),
- 
+
 def init_db(db_path=DB_PATH, drop_table=True):
     """
     Инициализирует базу данных SQLite.  Выполняет инициализацию только один раз.
