@@ -6,6 +6,8 @@ from datetime import datetime
 import multiprocessing
 from pathlib import Path
 import json
+import signal
+import sys
 
 from lib.cron_utils import VCron
 from lib.db_utils import (
@@ -31,6 +33,30 @@ log = init_log('rmndr', LOGPATH, LOGLEVEL)
 
 # Initialize VCron
 myVCron = VCron(TIMEZONE)
+
+# Глобальная переменная для отслеживания состояния работы
+running = True
+# Список активных процессов
+active_processes = []
+
+def signal_handler(signum, frame):
+    """
+    Обработчик сигналов для корректного завершения работы.
+    """
+    global running
+    if signum == signal.SIGINT:
+        log.info("Получен сигнал прерывания (Ctrl-C). Завершаем работу...")
+        running = False
+        # Завершаем все активные процессы
+        for p in active_processes:
+            if p.is_alive():
+                log.debug(f"Завершаем процесс {p.pid}")
+                p.terminate()
+                p.join(timeout=5)
+                if p.is_alive():
+                    log.warning(f"Процесс {p.pid} не завершился корректно, убиваем принудительно")
+                    p.kill()
+        sys.exit(0)
 
 def get_message_from_json(message: str) -> str:
     """
@@ -144,38 +170,64 @@ def check_and_send(schedule, myVCron, timezone):
 
 def main():
     """Основная функция скрипта."""
+    global running, active_processes
+    
+    # Устанавливаем обработчик сигнала
+    signal.signal(signal.SIGINT, signal_handler)
+    
     timezone = pytz.timezone(TIMEZONE)
     myVCron = VCron(TIMEZONE)
     last_backup_time = time.time()  # Время последнего бэкапа
 
-    while True:
-        now = datetime.now(timezone)
-        log.info(f"Проверка расписаний ({now.strftime('%d-%m-%Y %H:%M:%S')})")
+    log.info("Демон напоминаний запущен. Для завершения нажмите Ctrl-C")
 
-        # Проверяем необходимость создания резервной копии
-        current_time = time.time()
-        work_time = int(current_time - last_backup_time)
-        if work_time >= BACKUP_HOURS * 3600 or work_time == 0:
-            try:
-                backup_database(backup_dir=BACKUP_DIR,db_path=DB_PATH)
-                last_backup_time = current_time
-            except Exception as e:
-                log.error(f"Ошибка при создании резервной копии: {e}")
+    while running:
+        try:
+            now = datetime.now(timezone)
+            log.info(f"Проверка расписаний ({now.strftime('%d-%m-%Y %H:%M:%S')})")
 
-        if schedules := db_get_schedules(DB_PATH):
-            processes = []
-            for schedule in schedules:
-                p = multiprocessing.Process(target=check_and_send, args=(schedule, myVCron, timezone))
-                log.debug(f"Выполнение расписания {schedule}")
-                processes.append(p)
-                p.start()
+            # Проверяем необходимость создания резервной копии
+            current_time = time.time()
+            work_time = int(current_time - last_backup_time)
+            if work_time >= BACKUP_HOURS * 3600 or work_time == 0:
+                try:
+                    backup_database(backup_dir=BACKUP_DIR,db_path=DB_PATH)
+                    last_backup_time = current_time
+                except Exception as e:
+                    log.error(f"Ошибка при создании резервной копии: {e}")
 
-            # Ожидание завершения всех процессов
-            for p in processes:
-                p.join()
+            # Очищаем список активных процессов от завершенных
+            active_processes = [p for p in active_processes if p.is_alive()]
 
-        log.info(f"Следующая проверка через {CHECK_INTERVAL} секунд")
-        time.sleep(CHECK_INTERVAL)
+            if schedules := db_get_schedules(DB_PATH):
+                for schedule in schedules:
+                    if not running:
+                        break
+                    p = multiprocessing.Process(target=check_and_send, args=(schedule, myVCron, timezone))
+                    log.debug(f"Выполнение расписания {schedule}")
+                    active_processes.append(p)
+                    p.start()
+
+                # Ожидание завершения всех процессов
+                for p in active_processes:
+                    p.join(timeout=10)  # Добавляем таймаут для избежания зависания
+                    if p.is_alive():
+                        log.warning(f"Процесс {p.pid} не завершился вовремя")
+
+            if running:  # Проверяем флаг перед сном
+                log.info(f"Следующая проверка через {CHECK_INTERVAL} секунд")
+                # Используем короткие интервалы сна для более быстрой реакции на прерывание
+                for _ in range(CHECK_INTERVAL):
+                    if not running:
+                        break
+                    time.sleep(1)
+                    
+        except Exception as e:
+            log.error(f"Неожиданная ошибка в главном цикле: {e}")
+            if running:  # Если это не прерывание, ждем перед следующей попыткой
+                time.sleep(60)
+
+    log.info("Демон напоминаний завершил работу")
 
 if __name__ == "__main__":
     CHECK_INTERVAL = CHECK_MINUTES * 60  # Конвертируем минуты в секунды
