@@ -87,7 +87,8 @@ class WebApp:
 
             self.log.debug("Рендеринг шаблона index.html")
             chats = get_chats(self.db_path)
-            return render_template("index.html", schedules=schedules, db_path=self.db_path, sort_by=sort_by, chats=chats)
+            tag = os.getenv("TAG", "dev")
+            return render_template("index.html", schedules=schedules, db_path=self.db_path, sort_by=sort_by, chats=chats, tag=tag)
 
 
         @self.app.route("/schedules", methods=["GET"])
