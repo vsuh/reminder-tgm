@@ -13,7 +13,7 @@ load_env(environment)
 DB_PATH = os.getenv("TLCR_DB_PATH", "settings.db")
 LOGPATH = os.getenv("TLCR_LOGPATH", ".")
 LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", 'INFO').upper()
-BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "/static/db.bak")
+BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "static/db.bak")
 
 log = init_log('db_utils', LOGPATH, LOGLEVEL)
 

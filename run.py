@@ -26,7 +26,7 @@ CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("TLCR_TZ", "UTC")
 CHECK_MINUTES = int(os.getenv("TLCR_CHECK_MINUTES", "60"))
 BACKUP_HOURS = int(os.getenv("TLCR_BACKUP_INTERVAL", "24"))
-BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "/static/db.bak")
+BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "static/db.bak")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
