@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "start reminder-tgm scripts ver.${TAG}"
+
 run_process() {
     echo "Starting $1..."
     ./$1
