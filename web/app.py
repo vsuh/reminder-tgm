@@ -114,7 +114,8 @@ class WebApp:
             except Exception as e:
                 abort(400, description=f"Ошибка чтения JSON файла: {e}")
 
-            return render_template("message_file.html", rows=rows, schedule=schedule)
+            tag = os.getenv("TAG", "dev")
+            return render_template("message_file.html", rows=rows, schedule=schedule, tag=tag)
 
 
         @self.app.route("/schedules", methods=["GET"])
