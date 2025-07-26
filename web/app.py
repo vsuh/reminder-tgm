@@ -90,6 +90,32 @@ class WebApp:
             tag = os.getenv("TAG", "dev")
             return render_template("index.html", schedules=schedules, db_path=self.db_path, sort_by=sort_by, chats=chats, tag=tag)
 
+        @self.app.route("/message/<int:schedule_id>", methods=["GET"])
+        def show_message_file(schedule_id: int):
+            """
+            Открывает страницу с таблицей из файла, путь к которому хранится в сообщении (после #!).
+            """
+            schedule = get_schedule(schedule_id, self.db_path)
+            if not schedule:
+                abort(404, description="Расписание не найдено")
+            message = schedule.get("message", "")
+            if not message.startswith("#!"):
+                abort(400, description="Сообщение не содержит путь к файлу")
+            file_path = message[2:].strip()
+            if not os.path.isfile(file_path):
+                abort(404, description=f"Файл не найден: {file_path}")
+
+            # Читаем файл, ожидаем JSON: список словарей с ключами "date" и "text"
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    rows = json.load(f)
+                if not isinstance(rows, list) or not all(isinstance(row, dict) and "date" in row and "text" in row for row in rows):
+                    abort(400, description="Файл должен содержать список словарей с ключами 'date' и 'text'")
+            except Exception as e:
+                abort(400, description=f"Ошибка чтения JSON файла: {e}")
+
+            return render_template("message_file.html", rows=rows, schedule=schedule)
+
 
         @self.app.route("/schedules", methods=["GET"])
         def list_schedules():

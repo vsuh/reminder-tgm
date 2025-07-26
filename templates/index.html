@@ -45,7 +45,15 @@
                     <tr title = "Уведомление еще не отправлялось">
                 {% endif %}
                 <td>{{ schedule.cron }} </td>
-                <td>{{ schedule.message }}</td>
+                <td>
+                    {% if schedule.message.startswith('#!') %}
+                        <a href="{{ url_for('show_message_file', schedule_id=schedule.id) }}"
+                           style="color: #000; text-decoration: none;"
+                           title="показать содержимое файла">{{ schedule.message }}</a>
+                    {% else %}
+                        {{ schedule.message }}
+                    {% endif %}
+                </td>
                 <td>{{ schedule.modifier }}</td>
                 <td>{{ schedule.chat_name }}</td>
 
