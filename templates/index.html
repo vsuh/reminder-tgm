@@ -23,7 +23,7 @@
     </head>
 <body>
 <div class="container mt-5">
-    <h1 title="Используется БД: {{ db_path }}">Расписания</h1>
+    <h1 title="Используется БД: {{ db_path }}">Расписания <a href="#add_shedule">✙</a></h1>
     {% if schedules %}
     <table class="table table-striped">
         <thead>
@@ -76,7 +76,7 @@
     <div class="alert alert-info">Нет расписаний.</div>
     {% endif %}
 
-    <hr>
+    <hr id="add_shedule">
 
     <h2>Добавить расписание</h2>
     <form method="post">
