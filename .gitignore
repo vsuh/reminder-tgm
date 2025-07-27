@@ -178,3 +178,4 @@ cython_debug/
 **/*.db
 **/*.db-*
 .ai_prompt
+db/notification.json
