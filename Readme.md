@@ -1,8 +1,20 @@
 # Telegram Cron Reminder
 ![Notify Docker](https://github.com/vsuh/reminder-tgm/actions/workflows/notify-docker.yml/badge.svg)
 ![Build and Push Docker](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml/badge.svg)
+# reminder-tgm
+
+[![Docker Deploy](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml)
+
 
 Этот проект представляет собой простое приложение для отправки напоминаний в Telegram на основе расписания `cron` и дополнительных модификаторов.  Приложение предоставляет веб-интерфейс и REST API для управления расписаниями. Проект может быть развернут в [docker контейнере](https://github.com/vsuh/cron-tg-docker.git)
+
+> Для отражения изменений в контейнере, после внесения изменений нужно повысить версию и передать ее в удаленный репозитарий.  
+Например:
+
+```bash
+git tag v1.1.z
+git push --tags
+```
 
 ## Возможности
 
