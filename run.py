@@ -2,7 +2,6 @@
 Отправляет уведомление в Telegram, если находит подходящее в БД
 """
 import os
-import time
 import requests
 import pytz
 from datetime import datetime
@@ -12,7 +11,7 @@ import json
 from lib.cron_utils import VCron
 from lib.db_utils import (
     update_last_fired, get_chats, get_schedules as db_get_schedules,
-    DB_PATH, LOGPATH, LOGLEVEL, backup_database
+    DB_PATH, LOGPATH, LOGLEVEL
 )
 from lib.utils import get_environment_name, init_log, load_env
 

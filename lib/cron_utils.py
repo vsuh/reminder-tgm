@@ -1,5 +1,5 @@
 from croniter import croniter
-from datetime import datetime, timedelta, date
+from datetime import datetime
 import pytz
 from dateutil.relativedelta import relativedelta
 import re

@@ -1,4 +1,3 @@
-from web.app import web
 from web.app import WebApp
 
 def create_app():
