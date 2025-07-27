@@ -179,3 +179,4 @@ cython_debug/
 **/*.db-*
 .ai_prompt
 db/notification.json
+portainer_redeploy.sh
