@@ -1,9 +1,7 @@
 # Telegram Cron Reminder
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/vsuh/reminder-tgm?label=version)](https://github.com/vsuh/reminder-tgm/tags)
-
 [![Notify Docker](https://github.com/vsuh/reminder-tgm/actions/workflows/notify-docker.yml/badge.svg)](https://github.com/vsuh/reminder-tgm/actions/workflows/notify-docker.yml)
-
 [![Build and Push Docker](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml)
 
 
