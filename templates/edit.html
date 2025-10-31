@@ -12,7 +12,8 @@
     <form method="post" class="p-4 border rounded bg-light shadow-sm">
         <div class="mb-3">
             <label for="cron" class="form-label">CRON выражение:</label>
-            <input type="text" class="form-control" id="cron" name="cron" value="{{ schedule.cron }}" required>
+            <input type="text" class="form-control" id="cron" name="cron" value="{{ schedule.cron }}" required placeholder="Например: 0 9 * * 1-5 (М Ч Д Мс Н)">
+            <div class="form-text">Формат: М Ч Д Мс Н (например, 0 9 * * 1-5)</div>
         </div>
         <div class="mb-3">
             <label for="message" class="form-label">Сообщение:</label>
@@ -20,7 +21,8 @@
         </div>
         <div class="mb-3">
             <label for="modifier" class="form-label">Модификатор:</label>
-            <input type="text" class="form-control" id="modifier" name="modifier" value="{{ schedule.modifier }}">
+            <input type="text" class="form-control" id="modifier" name="modifier" value="{{ schedule.modifier }}" placeholder="Например: ГГГГММДД>d/NN">
+            <div class="form-text">Пример: ГГГГММДД&gt;d/NN</div>
         </div>
         <div class="mb-3">
             <label for="chat_id" class="form-label">Чат:</label>
