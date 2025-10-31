@@ -82,7 +82,9 @@
     <form method="post">
         <div class="form-group">
             <label for="cron">CRON выражение:</label>
-            <input type="text" class="form-control" id="cron" name="cron" required>
+            <input type="text" class="form-control" id="cron" name="cron" required placeholder="Например: 0 9 * * 1-5 (М Ч Д Мс Н)">
+            <div class="form-text">Формат: М Ч Д Мс Н (например, 0 9 * * 1-5)</div>
+
         </div>
         <div class="form-group">
             <label for="message">Сообщение:</label>
@@ -99,7 +101,9 @@
 
         <div class="form-group">
             <label for="modifier">Модификатор:</label>
-            <input type="text" class="form-control" id="modifier" name="modifier">
+            <input type="text" class="form-control" id="modifier" name="modifier" value="{{ schedule.modifier }}" placeholder="Например: ГГГГММДД>d/NN">
+            <div class="form-text">Пример: ГГГГММДД&gt;d/NN</div>
+   
         </div>
         <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i>&nbsp; Добавить</button>
         <a href="/chats" class="btn btn-primary"><i class="far fa-edit"></i>&nbsp; Управление чатами</a>
