@@ -85,7 +85,7 @@ fi
 
 git add Dockerfile
 git commit -m "version bumped up to $LATEST_TAG"
-git push origin main
+git push origin ${DOCKER_BRANCH_NAME}
 
 cd ..
 rm -rf "$CLONE_DIR"
