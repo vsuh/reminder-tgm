@@ -55,6 +55,7 @@ echo "Current tag in Dockerfile: $CURRENT_TAG"
 if [ "$CURRENT_TAG" = "$LATEST_TAG" ]; then
     echo "Version is already up to date ($LATEST_TAG). No changes needed."
     cd ..
+    curl -X POST ${PORTAINER_WEBHOOK_URL}
     rm -rf "$CLONE_DIR"
     exit 0
 fi
