@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+current_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+remote_tag=$(git ls-remote --tags origin | awk -F/ '{print $3}' | sort -V | tail -n1)
+
+if [ "$current_tag" != "$remote_tag" ]; then
+  echo "############################################################ "
+  echo "    🚀  Тег изменился $remote_tag -> $current_tag"
+  echo "       На github.com запустился workflow обновляющий"
+  echo "       проект vsuh/cron-tg-docker."
+  echo "       через несколько минут придет уведомление в telegram"
+  echo "############################################################ "
+else
+  echo "✅ Теги совпадают ($current_tag)"
+fi
