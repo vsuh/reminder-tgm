@@ -1,15 +1,27 @@
 #!/usr/bin/env sh
 
-current_tag=$(git describe --tags --abbrev=0 2>/dev/null)
-remote_tag=$(git ls-remote --tags origin | awk -F/ '{print $3}' | sort -V | tail -n1)
+remote="$1"
+url="$2"
 
-if [ "$current_tag" != "$remote_tag" ]; then
-  echo "############################################################ "
-  echo "    🚀  Тег изменился $remote_tag -> $current_tag"
-  echo "       На github.com запустился workflow обновляющий"
-  echo "       проект vsuh/cron-tg-docker."
-  echo "       через несколько минут придет уведомление в telegram"
-  echo "############################################################ "
-else
-  echo "✅ Теги совпадают ($current_tag)"
+to_push=$(git rev-list --count @{u}..HEAD 2>/dev/null)
+if [ "$to_push" = "0" ] 2>/dev/null || [ -z "$to_push" ]; then
+  exit 0
 fi
+
+local_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+remote_tag=$(git ls-remote --tags "$remote" | awk -F/ '{print $3}' | sort -V | tail -n1)
+
+# Если тегов нет — выходим
+[ -z "$local_tag" ] && exit 0
+[ -z "$remote_tag" ] && exit 0
+
+# Если тег не изменился — выходим
+[ "$local_tag" = "$remote_tag" ] && exit 0
+
+echo "############################################################"
+echo "🚀  Тег изменился $remote_tag → $local_tag"
+echo "    На github.com запустится workflow обновления проекта."
+echo "    Через несколько минут придет уведомление в Telegram."
+echo "############################################################"
+
+exit 0
