@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Настройка локальных git hooks для Linux / macOS
+
+# Устанавливаем путь к хукам
+git config core.hooksPath .githooks
+
+echo "✅ Git hooks path set to .githooks"

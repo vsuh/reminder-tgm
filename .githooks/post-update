@@ -1,0 +1,28 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]; then
+    exit 0
+fi
+
+tag_changed=false
+
+for ref in "$@"; do
+    if [[ "$ref" == refs/tags/* ]]; then
+        tag_changed=true
+        # Извлекаем имя тега (убираем префикс refs/tags/)
+        tag_name="${ref#refs/tags/}"
+        echo "########################################## \
+\
+ 🏷️  Изменение версии на: $tag_name.\
+ Запускается workflow и обновляется образ в vsuh/cron-tg-docker \
+\
+ ########################################################"
+    fi
+done
+
+# Дополнительное сообщение, если теги не менялись
+if ! $tag_changed; then
+    echo "✅ No tags were changed in this push."
+fi
+
+exit 0
