@@ -15,4 +15,8 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
           repository: vsuh/cron-tg-docker
           event-type: new-reminder-tgm-tag
-          client-payload: '{"tag": "${{ github.ref_name }}"}'
+          client-payload: >
+            {
+              "tag": "${{ github.ref_name }}",
+              "message": "${{ github.event.head_commit.message }}"
+            }
