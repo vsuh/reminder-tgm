@@ -1,3 +1,4 @@
+---
 name: Notify container repo on new tag
 
 on:
@@ -20,3 +21,10 @@ jobs:
               "tag": "${{ github.ref_name }}",
               "message": "${{ github.event.head_commit.message }}"
             }
+
+      - name: Verify dispatch was sent
+        run: |
+          echo "✅ Dispatch sent to vsuh/cron-tg-docker"
+          echo "   Event type: new-reminder-tgm-tag"
+          echo "   Tag: ${{ github.ref_name }}"
+          echo "   Check target repo Actions tab: https://github.com/vsuh/cron-tg-docker/actions"
