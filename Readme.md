@@ -29,9 +29,9 @@ curl -X POST https://api.github.com/repos/vsuh/cron-tg-docker/dispatches \
 токен должен иметь права `repo.*`
 в результате должно придти сообщение в telegram типа:
 
-> ✅ Build successful!
-> docker.io/vsuh/cron-tg:v99.0.0-dispatch-test
-> Update notify-docker.yml - Test from curl
+> ✅ Build successful!  
+> docker.io/vsuh/cron-tg:v99.0.0-dispatch-test  
+> Update notify-docker.yml - Test from curl  
 
 ## Локальные git hooks
 
