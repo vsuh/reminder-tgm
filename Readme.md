@@ -15,6 +15,24 @@ git tag v1.1.z
 git push origin master --tags
 ```
 
+### Тестирование цепочки workflow
+
+для запуска процесса обновления:
+
+```sh
+curl -X POST https://api.github.com/repos/vsuh/cron-tg-docker/dispatches \
+  -H "Accept: application/vnd.github.v3+json" \
+  -H "Authorization: token ${GH_TOKEN}" \
+  -d '{"event_type":"new-reminder-tgm-tag","client_payload":{"tag":"v99.0.0-dispatch-test","message":"Test from curl"}}'
+```
+
+токен должен иметь права `repo.*`
+в результате должно придти сообщение в telegram типа:
+
+> ✅ Build successful!
+> docker.io/vsuh/cron-tg:v99.0.0-dispatch-test
+> Update notify-docker.yml - Test from curl
+
 ## Локальные git hooks
 
 Все хуки проекта хранятся здесь: `.githooks`
