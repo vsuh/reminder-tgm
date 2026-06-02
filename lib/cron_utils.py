@@ -28,7 +28,6 @@ class VCron:
         except ValueError:
             return False
 
-    def is_valid_modifier(self, modifier: str) -> bool:
         if not modifier:
             return True
         pattern = r'^(?:(?P<date>\d{8})>?)?(?P<period>[wdm]\/\d+)$' # Added 'm' for month support

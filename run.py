@@ -33,54 +33,56 @@ log = init_log('rmndr', LOGPATH, LOGLEVEL)
 # Initialize VCron
 myVCron = VCron(TIMEZONE)
 
+
 def get_message_from_json(message: str) -> str:
     """
     Если сообщение имеет формат '#!/path/to/file.json',
     пытается загрузить JSON файл и найти сообщение для текущей даты.
-    
+
     Args:
         message (str): Исходное сообщение в формате '#!/path/to/file.json'
-        
+
     Returns:
         str: Текст сообщения для отправки
     """
     if not message.startswith('#!/'):
         return message
-        
+
     try:
         # Получаем путь к файлу после #!
         json_path = message[2:].strip()
         if not os.path.isfile(json_path):
             log.error(f"Файл {json_path} не найден")
             return message
-            
+
         with open(json_path, 'r', encoding='utf-8') as f:
             messages = json.load(f)
-            
+
         if not isinstance(messages, list):
             log.error(f"Содержимое файла {json_path} должно быть массивом")
             return message
-            
+
         today = datetime.now().strftime('%Y-%m-%d')
-        
+
         # Ищем сообщение для сегодняшней даты
         for item in messages:
             if not isinstance(item, dict) or 'date' not in item or 'text' not in item:
                 continue
-                
+
             if item['date'] == today:
                 log.debug(f"Найдено сообщение для даты {today} в файле {json_path}")
                 return item['text']
-                
+
         log.warning(f"В файле {json_path} не найдено сообщение для даты {today}")
         return message
-            
+
     except json.JSONDecodeError as e:
         log.error(f"Ошибка при разборе JSON файла {json_path}: {e}")
         return message
     except Exception as e:
         log.error(f"Непредвиденная ошибка при обработке файла {json_path}: {e}")
         return message
+
 
 def send_telegram_message(message, chat_id):
     """
@@ -95,7 +97,7 @@ def send_telegram_message(message, chat_id):
     # Добавляем текущую дату перед сообщением
     today = datetime.now().strftime('%d-%m-%Y')
     formatted_message = f"{today}\n{actual_message}"
-     
+
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": formatted_message}
     try:
@@ -104,6 +106,7 @@ def send_telegram_message(message, chat_id):
         log.debug(f"Сообщение успешно отправлено chat_id={chat_id}: {formatted_message}")
     except requests.exceptions.RequestException as e:
         log.error("Ошибка при отправке сообщения: %s, ошибка: %s", formatted_message, e)
+
 
 def get_chat_id(chat_id_from_schedule):
     chats = get_chats(DB_PATH)
@@ -116,6 +119,17 @@ def get_chat_id(chat_id_from_schedule):
         None,
     )
 
+def calculate_age(birth_date: datetime, today: datetime) -> int:
+    """
+    Возвращает возраст в годах, учитывая дату рождения и текущую дату.
+    """
+    years = today.year - birth_date.year
+    # если день рождения ещё не наступил в этом году — вычитаем 1
+    if (today.month, today.day) < (birth_date.month, birth_date.day):
+        years -= 1
+    return years
+
+
 def check_and_send(schedule, myVCron, timezone):
     """
     Проверяет расписание и отправляет уведомление, если необходимо.
@@ -126,6 +140,25 @@ def check_and_send(schedule, myVCron, timezone):
     message = schedule["message"]
     modifier = schedule.get("modifier", "")
     record_key = schedule["id"]
+
+    # Если сообщение про ДР и в modifier лежит дата, добавляем возраст
+    if isinstance(message, str) and message.startswith("ДР") and modifier:
+        try:
+            # формат даты YYYYMMDD
+            birth_date = datetime.strptime(modifier.strip(), "%Y%m%d").date()
+            today_date = now.date()
+            age = calculate_age(
+                datetime(birth_date.year, birth_date.month, birth_date.day),
+                datetime(today_date.year, today_date.month, today_date.day),
+            )
+            message = f"{message} ({age} лет)"
+        except ValueError:
+            # если modifier не в формате даты — просто логируем и шлём как есть
+            log.warning(
+                "Не удалось распарсить дату из modifier='%s' для сообщения '%s'",
+                modifier,
+                message,
+            )
 
     if myVCron.check_cron(cron_expr, now) and myVCron.check_modifier(modifier, now):
         log.info("Телеграфирую: %s", message)
@@ -138,7 +171,11 @@ def check_and_send(schedule, myVCron, timezone):
         update_last_fired(record_key, DB_PATH)
         print(f"{now} уведомление по расписанию № {record_key}")
     else:
-        log.debug(f"Сообщение не отправлено: {message} (не соответствует условиям CRON:{cron_expr}({modifier})")
+        log.debug(
+            f"Сообщение не отправлено: {message} "
+            f"(не соответствует условиям CRON:{cron_expr}({modifier})"
+        )
+
 
 def main():
     """Основная функция скрипта."""
@@ -160,6 +197,7 @@ def main():
             p.join()
 
     log.info(f"Завершение работы скрипта {datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')}")
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,6 @@
 [![Notify Docker](https://github.com/vsuh/reminder-tgm/actions/workflows/notify-docker.yml/badge.svg)](https://github.com/vsuh/reminder-tgm/actions/workflows/notify-docker.yml)
 [![Build and Push Docker](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/vsuh/cron-tg-docker/actions/workflows/build-and-push.yml)
 
-
 Этот проект представляет собой простое приложение для отправки напоминаний в Telegram на основе расписания `cron` и дополнительных модификаторов.  Приложение предоставляет веб-интерфейс и REST API для управления расписаниями. Проект может быть развернут в [docker контейнере](https://github.com/vsuh/cron-tg-docker.git)
 
 > После повышения версии проекта, запускается GA workflow обновляющий образ [vsuh/cron-tg-docker](https://hub.docker.com/r/vsuh/cron-tg-docker)
@@ -16,7 +15,7 @@ git tag v1.1.z
 git push origin master --tags
 ```
 
-# Локальные git hooks
+## Локальные git hooks
 
 Все хуки проекта хранятся здесь: `.githooks`
 При клонировании репозитория для доработок, необходимо один раз выполнить:
@@ -34,7 +33,6 @@ powershell -ExecutionPolicy Bypass -File .githooks\init-hooks.ps1
 
 После этого Git будет использовать хуки из папки .githooks/.
 
-
 ## Возможности
 
 - **Гибкое расписание:** Поддержка `cron` выражений и дополнительных модификаторов для точной настройки времени отправки напоминаний.
@@ -43,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File .githooks\init-hooks.ps1
 - **поддержка Shebang:** Возможность загрузки текста уведомления из JSON файла через shebang синтаксис (#!/path/to/file.json).
 - **Веб-интерфейс:** Удобный веб-интерфейс для управления расписаниями, добавления, редактирования и удаления напоминаний, а также ведения списка чатов.
 - **Экспорт/импорт списка расписаний:** Возможность загрузки расписаний из файла в формате JSON, а также выгрузки.
-- **Запуск в Docker:** Поддержка запуска приложения в Docker [см.](https://github.com/vsuh/cron-tg-docker.git). 
+- **Запуск в Docker:** Поддержка запуска приложения в Docker [см.](https://github.com/vsuh/cron-tg-docker.git).
 
 ## Установка и запуск
 
@@ -103,7 +101,7 @@ start_rund_service.sh
 
 - Веб-интерфейс
 
-Доступ к веб-интерфейсу осуществляется по адресу http://host:7878 (или на порту, указанному в .env). Вы можете добавлять, редактировать и удалять расписания, а также управлять чатами Telegram через веб-интерфейс.
+Доступ к веб-интерфейсу осуществляется по адресу `http://host:7878` (или на порту, указанному в .env). Вы можете добавлять, редактировать и удалять расписания, а также управлять чатами Telegram через веб-интерфейс.
 
 ## API
 
@@ -121,16 +119,18 @@ start_rund_service.sh
 
 Приложение поддерживает специальный формат сообщений, начинающихся с shebang синтаксиса:
 
-```
+```bash
 #!relative-path/to/file.json
 ```
 
 Если сообщение начинается с такой строки (#!), приложение:
+
 1. Читает указанный JSON файл
 2. Находит сообщение, соответствующее текущей дате
 3. Использует значение поля `text` в качестве текста сообщения
 
 Пример JSON файла с сообщениями:
+
 ```json
 [
   {
@@ -145,12 +145,13 @@ start_rund_service.sh
 ```
 
 В этом формате:
+
 - `date`: дата в формате "YYYY-MM-DD"
 - `text`: текст сообщения для этой даты
 
 ## Таблица chats
 
-Перед началом заполнения таблицы расписаний, необходимо заполнить таблицу чатов по адресу http://host:7878/chats
+Перед началом заполнения таблицы расписаний, необходимо заполнить таблицу чатов по адресу `http://host:7878/chats`
 
 ## Пример импорта данных
 
@@ -165,34 +166,42 @@ curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @da
 Для работы приложения необходимо настроить следующие переменные окружения:
 
 ### Настройки Telegram бота
+
 - `TLCR_TELEGRAM_TOKEN` - токен вашего бота, полученный у @BotFather
 - `TLCR_TELEGRAM_CHAT_ID` - ID чата/группы для отправки сообщений
 
 ### Настройки времени
+
 - `TLCR_TZ` - временная зона сервера (например, "Europe/Moscow")
 
 ### Настройки базы данных
+
 - `TLCR_DB_PATH` - путь к файлу БД (по умолчанию "db/settings.db")
 - `TLCR_BACKUP_PATH` - путь для хранения резервных копий БД
 - `TLCR_BACKUP_INTERVAL` - интервал создания резервных копий в часах
 
 ### Настройки логирования
+
 - `TLCR_LOGPATH` - директория для хранения логов
 - `TLCR_LOG_LEVEL` - уровень логирования (DEBUG, INFO, WARNING, ERROR)
 
 ### Настройки веб-интерфейса
+
 - `TLCR_SECRET_KEY` - секретный ключ для Flask (обязательно измените в production)
 - `TLCR_LIST_ITEMS` - количество элементов на странице
 - `TLCR_FLASK_PORT` - порт для веб-интерфейса
 
 ### Настройки планировщика
+
 - `TLCR_CHECK_MINUTES` - интервал проверки расписаний в минутах
 
 ### Настройки режима работы
+
 - `FLASK_ENV` - режим работы Flask (development/production)
 - `FLASK_DEBUG` - режим отладки (0/1)
 
 Пример файла конфигурации можно найти в `.env.SAMPLE`. Для production-окружения рекомендуется:
+
 - Использовать абсолютные пути для файлов и директорий
 - Отключить режим отладки (`FLASK_DEBUG=0`)
 - Установить `FLASK_ENV=production`
@@ -207,5 +216,3 @@ curl -X POST -H "Content-Type: application/json;charset=utf-8" --data-binary @da
 - **web_prod.sh** - запуск веб-службы скриптом start.sh
 - **rund_prod.sh** - запуск службы проверки расписаний скриптом start.sh
 - **web.sh** - запуск вебслужбы в режиме отладки
-
----

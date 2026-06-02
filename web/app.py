@@ -21,11 +21,11 @@ class WebApp:
         self.myVCron = VCron(timezone=self.timezone)
         self.setup_routes()
         init_db(drop_table=False)
-        
+
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
         self.app.config["SECRET_KEY"] = os.getenv("TLCR_SECRET_KEY", os.urandom(12).hex())
-        
+
     def load_env(self, env_file):
         env = get_environment_name()
         load_utils_env(env)
@@ -34,6 +34,17 @@ class WebApp:
 
         self.db_path = DB_PATH
         self.timezone = os.getenv("TLCR_TZ", "UTC")
+
+    @staticmethod
+    def _calculate_age_for_date(birth_date: datetime, at_date: datetime) -> int:
+        """
+        Возвращает возраст в годах на указанную дату.
+        birth_date и at_date — datetime.
+        """
+        years = at_date.year - birth_date.year
+        if (at_date.month, at_date.day) < (birth_date.month, birth_date.day):
+            years -= 1
+        return years
 
     def _validate_schedule_data(self, data):
         if not data or "cron" not in data or "message" not in data:
@@ -232,26 +243,54 @@ class WebApp:
         def list_nexts(schedule_id: int):
             """
             Отображает список следующих запусков расписания.
+            Для уведомлений о ДР (сообщение начинается с "ДР" и есть дата в modifier в формате YYYYMMDD)
+            в список добавляется возраст на дату каждого события.
             """
             NEXT = int(os.getenv("TLCR_LIST_ITEMS", "10"))
             schedule = get_schedule(schedule_id, self.db_path)
             if schedule is None:
                 abort(404)
 
-            next_dates = []
             cron_expression = schedule['cron']
             modifier = schedule.get('modifier')
+            message = schedule.get('message', '') or ''
             current_time = datetime.now(tz=self.myVCron.timezone)
 
+            rows = []
+            birth_date = None
+            is_birthday = isinstance(message, str) and message.startswith("ДР") and modifier
+
+            if is_birthday:
+                try:
+                    # modifier в формате YYYYMMDD
+                    birth_date = datetime.strptime(modifier.strip(), "%Y%m%d")
+                except ValueError:
+                    birth_date = None
+                    is_birthday = False
+
             for _ in range(NEXT):
-                next_match = self.myVCron.get_next_match(cron_expression, modifier, start_time=current_time)
+                next_match = self.myVCron.get_next_match(
+                    cron_expression, modifier, start_time=current_time
+                )
                 if next_match is None:
                     break
 
-                next_dates.append(next_match.isoformat())
+                if is_birthday and birth_date is not None:
+                    age = self._calculate_age_for_date(birth_date, next_match)
+                    text = f"{message} ({age} лет)"
+                else:
+                    text = message
+
+                rows.append(
+                    {
+                        "dt": next_match,
+                        "text": text,
+                    }
+                )
+                # сдвигаем стартовое время, чтобы искать следующее срабатывание
                 current_time = next_match + timedelta(hours=1)
 
-            return render_template("list.html", next_dates=next_dates, schedule=schedule)
+            return render_template("list.html", rows=rows, schedule=schedule)
 
         @self.app.route("/chats", methods=["GET", "POST"])
         def chats_view():
@@ -281,7 +320,7 @@ class WebApp:
                 self.log.error(f"Ошибка при удалении чата: {e}")
                 return render_template("error.html", text=f"Ошибка при удалении чата: {e}"), 500
             return redirect(url_for("chats_view"))
-        
+
         @self.app.route('/export', methods=['GET'])
         def export_json():
             """

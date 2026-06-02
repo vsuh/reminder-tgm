@@ -6,14 +6,14 @@
     "configurations": [
         {
             "name": "Отладчик Python: Текущий файл",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
         },
         {
             "name": "Python Debugger: Flask",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "module": "flask",
             "env": {
