@@ -67,7 +67,8 @@ def run_initialization(conn, drop_table, db_path):
                         modifier TEXT,
                         last_fired TIMESTAMP,
                         chat_id INTEGER NOT NULL,
-                        FOREIGN KEY (chat_id) REFERENCES chats(id)
+                        FOREIGN KEY (chat_id) REFERENCES chats(id),
+                        FOREIGN KEY (ntfy_id) REFERENCES ntfy_channels(id)
                     )''',
         cursor,
         conn,
@@ -81,73 +82,78 @@ def run_initialization(conn, drop_table, db_path):
         cursor,
         conn,
     )
+    run_create_table(
+        f'''{"" if drop_table else "IF NOT EXISTS"} ntfy_channels (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE,
+                        url TEXT NOT NULL UNIQUE,
+                        title TEXT
+                    )''',
+        cursor,
+        conn,
+    )
 
-
-def get_schedules(db_path) -> list:
-    """
-    Возвращает список расписаний из базы данных.
-
-    Args:
-        db_path (str): Путь к файлу базы данных.
-
-    Returns:
-        list: Список расписаний.
-    """
+def migrate_add_ntfy(db_path=DB_PATH):
+    """Добавляет столбец ntfy_id в schedules и таблицу ntfy_channels, если их нет."""
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id FROM schedules")
-            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4], "chat_id": row[5]} for row in cursor.fetchall()]
+            # Таблица ntfy_channels
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ntfy_channels (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    url TEXT NOT NULL UNIQUE,
+                    title TEXT
+                )
+            """)
+            # Столбец ntfy_id в schedules
+            cursor.execute("PRAGMA table_info(schedules)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "ntfy_id" not in columns:
+                cursor.execute("ALTER TABLE schedules ADD COLUMN ntfy_id INTEGER REFERENCES ntfy_channels(id)")
+            conn.commit()
+            log.info("Миграция ntfy выполнена успешно")
+    except sqlite3.Error as e:
+        log.error("Ошибка миграции ntfy: %s", str(e))
+        
+def get_schedules(db_path) -> list:
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id FROM schedules")
+            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3],
+                    "last_fired": row[4], "chat_id": row[5], "ntfy_id": row[6]} for row in cursor.fetchall()]
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписаний: %s", str(e))
         return []
 
 def get_schedule(schedule_id, db_path) -> dict or None:
-    """
-    Возвращает расписание по его ID.
-
-    Args:
-        schedule_id (int): ID расписания.
-        db_path (str): Путь к файлу базы данных.
-
-    Returns:
-        dict or None: Расписание в виде словаря или None, если расписание не найдено.
-    """
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id FROM schedules WHERE id = ?", (schedule_id,))
+            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id FROM schedules WHERE id = ?", (schedule_id,))
             row = cursor.fetchone()
             if row:
-                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3], "last_fired": row[4], "chat_id": row[5]}
-            else:
-                return None
+                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3],
+                        "last_fired": row[4], "chat_id": row[5], "ntfy_id": row[6]}
+            return None
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписания: %s", str(e))
-        return []
-
-def add_schedule(cron, message, modifier, chat_id, db_path):
-    """
-    Добавляет новое расписание в базу данных.
-
-    Args:
-        cron (str): CRON выражение.
-        message (str): Сообщение.
-        modifier (str): Модификатор.
-        chat_id (int): ID чата.
-        db_path (str): Путь к файлу базы данных.
-    """
+        return None
+    
+def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            # Проверяем, есть ли записи в таблице chats
             cursor.execute("SELECT COUNT(*) FROM chats")
-            chats_count = cursor.fetchone()[0]
-            if chats_count == 0:
-                raise MyError("Нельзя добавить расписание: таблица chats пуста. Сначала добавьте хотя бы один чат.")
-            cursor.execute("INSERT INTO schedules (cron, message, modifier, chat_id) VALUES (?, ?, ?, ?)", (cron, message, modifier, chat_id))
+            if cursor.fetchone()[0] == 0:
+                raise MyError("Нельзя добавить расписание: таблица chats пуста.")
+            cursor.execute(
+                "INSERT INTO schedules (cron, message, modifier, chat_id, ntfy_id) VALUES (?, ?, ?, ?, ?)",
+                (cron, message, modifier, chat_id, ntfy_id or None)
+            )
             conn.commit()
-            log.info("Добавлено новое расписание: %s, %s, %s, %s", cron, message, modifier, chat_id)
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении расписания: %s", str(e))
     except MyError as me:
@@ -226,30 +232,15 @@ def update_last_fired(schedule_id, db_path):
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении last_fired: %s", str(e))
 
-def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path) -> MyError or None:
-    """
-    Обновляет расписание в базе данных.
-
-    Args:
-        schedule_id (int): ID расписания.
-        cron (str): CRON выражение.
-        message (str): Сообщение.
-        modifier (str): Модификатор.
-        chat_id (int): ID чата.
-        db_path (str): Путь к файлу базы данных.
-
-    Returns:
-        MyError or None: Возвращает MyError, если произошла ошибка, или None в случае успеха.
-    """
+def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path, ntfy_id=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE schedules SET cron = ?, message = ?, modifier = ?, chat_id = ? WHERE id = ?",
-                (cron, message, modifier, chat_id, schedule_id)
+                "UPDATE schedules SET cron=?, message=?, modifier=?, chat_id=?, ntfy_id=? WHERE id=?",
+                (cron, message, modifier, chat_id, ntfy_id or None, schedule_id)
             )
             conn.commit()
-            log.info("Обновлено расписание с ID: %d", schedule_id)
         return None
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении расписания: %s", str(e))
@@ -293,3 +284,45 @@ def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
     except sqlite3.Error as e:
         log.error(f"Ошибка при создании резервной копии БД: {e}")
         raise MyError(f"Ошибка при создании резервной копии БД: {e}")
+
+def get_ntfy_channels(db_path) -> list:
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, url, title FROM ntfy_channels")
+            return [{"id": row[0], "name": row[1], "url": row[2], "title": row[3]} for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        log.error("Ошибка при получении ntfy каналов: %s", str(e))
+        return []
+
+def add_ntfy_channel(name, url, title, db_path):
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO ntfy_channels (name, url, title) VALUES (?, ?, ?)", (name, url, title or None))
+            conn.commit()
+    except sqlite3.Error as e:
+        log.error("Ошибка при добавлении ntfy канала: %s", str(e))
+
+def delete_ntfy_channel(channel_id, db_path):
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            # Обнуляем ссылки в расписаниях
+            cursor.execute("UPDATE schedules SET ntfy_id=NULL WHERE ntfy_id=?", (channel_id,))
+            cursor.execute("DELETE FROM ntfy_channels WHERE id=?", (channel_id,))
+            conn.commit()
+    except sqlite3.Error as e:
+        log.error("Ошибка при удалении ntfy канала: %s", str(e))
+        raise MyError(f"Ошибка при удалении ntfy канала: {e}")
+
+def get_ntfy_channel(channel_id, db_path) -> dict or None:
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, url, title FROM ntfy_channels WHERE id=?", (channel_id,))
+            row = cursor.fetchone()
+            return {"id": row[0], "name": row[1], "url": row[2], "title": row[3]} if row else None
+    except sqlite3.Error as e:
+        log.error("Ошибка при получении ntfy канала: %s", str(e))
+        return None

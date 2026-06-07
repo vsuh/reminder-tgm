@@ -51,6 +51,17 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="mb-3">
+                <label for="ntfy_id" class="form-label">ntfy канал (дублирование):</label>
+                <select class="form-select" id="ntfy_id" name="ntfy_id">
+                    <option value="">— не дублировать —</option>
+                    {% for ch in ntfy_channels %}
+                    <option value="{{ ch.id }}" {% if ch.id == schedule.ntfy_id %}selected{% endif %}>
+                        {{ ch.name }} ({{ ch.url }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>          
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Сохранить изменения</button>
                 <a href="/" class="btn btn-secondary">Отмена</a>

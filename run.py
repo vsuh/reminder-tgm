@@ -107,6 +107,18 @@ def send_telegram_message(message, chat_id):
     except requests.exceptions.RequestException as e:
         log.error("Ошибка при отправке сообщения: %s, ошибка: %s", formatted_message, e)
 
+def send_ntfy_message(url: str, message: str, title: str = None):
+    """Отправляет уведомление в ntfy.sh топик."""
+    headers = {}
+    if title:
+        headers["Title"] = title
+    try:
+        response = requests.post(url, data=message.encode("utf-8"), headers=headers)
+        response.raise_for_status()
+        log.debug(f"ntfy уведомление отправлено на {url}")
+    except requests.exceptions.RequestException as e:
+        log.error("Ошибка при отправке ntfy уведомления на %s: %s", url, e)
+
 
 def get_chat_id(chat_id_from_schedule):
     chats = get_chats(DB_PATH)

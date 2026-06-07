@@ -5,9 +5,11 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, redirect, url_for, abort, send_file
 from lib.cron_utils import VCron
 from lib.db_utils import (
-    DB_PATH, LOGLEVEL, LOGPATH, add_schedule,
-    delete_schedule, get_schedule, get_schedules, init_db,
-    init_log, update_schedule, add_chat, get_chats, delete_chat
+    DB_PATH, LOGLEVEL, LOGPATH,
+    add_schedule, delete_schedule, get_schedule, get_schedules,
+    init_db, init_log, update_schedule,
+    add_chat, get_chats, delete_chat,
+    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy
 )
 from lib.utils import get_environment_name, load_env as load_utils_env
 
@@ -21,6 +23,7 @@ class WebApp:
         self.myVCron = VCron(timezone=self.timezone)
         self.setup_routes()
         init_db(drop_table=False)
+        migrate_add_ntfy(self.db_path)
 
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
@@ -37,10 +40,6 @@ class WebApp:
 
     @staticmethod
     def _calculate_age_for_date(birth_date: datetime, at_date: datetime) -> int:
-        """
-        Возвращает возраст в годах на указанную дату.
-        birth_date и at_date — datetime.
-        """
         years = at_date.year - birth_date.year
         if (at_date.month, at_date.day) < (birth_date.month, birth_date.day):
             years -= 1
@@ -62,9 +61,6 @@ class WebApp:
 
         @self.app.route("/", methods=["GET", "POST"])
         def schedules_view():
-            """
-            Главная страница приложения. Отображает список расписаний и форму для добавления нового расписания.
-            """
             if request.method == "POST":
                 cron = request.form.get("cron")
                 message = request.form.get("message")
@@ -72,12 +68,13 @@ class WebApp:
                 if not cron or not message:
                     abort(400, description="Все поля должны быть заполнены")
                 try:
-                    self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message}) # Validate data
+                    self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message})
                     chat_id = request.form.get("chat_id") or self.app.config["def_chat_id"]
-
                     if not chat_id:
-                        abort(400,"Не выбран чат для напоминания. Сначала добавьте чат и выберите его.")
-                    add_schedule(cron, message, modifier, int(chat_id), self.db_path)
+                        abort(400, "Не выбран чат для напоминания. Сначала добавьте чат и выберите его.")
+                    ntfy_id_str = request.form.get("ntfy_id", "")
+                    ntfy_id = int(ntfy_id_str) if ntfy_id_str else None
+                    add_schedule(cron, message, modifier, int(chat_id), self.db_path, ntfy_id=ntfy_id)
                 except ValueError as e:
                     return render_template("error.html", text=str(e)), 400
                 return redirect(url_for("schedules_view"))
@@ -85,12 +82,12 @@ class WebApp:
             sort_by = request.args.get('sort_by', 'next')
             schedules = get_schedules(self.db_path)
             chats = get_chats(self.db_path)
-            chat_map = {chat['id']: chat['name'] for chat in chats} # Create a chat ID to name mapping
+            chat_map = {chat['id']: chat['name'] for chat in chats}
 
             for item in schedules:
                 next_match = self.myVCron.get_next_match(item['cron'], item['modifier'])
                 item['next'] = next_match.isoformat() if next_match else None
-                item['chat_name'] = chat_map.get(item['chat_id']) # Add chat name to schedule data
+                item['chat_name'] = chat_map.get(item['chat_id'])
 
             schedules.sort(
                 key=lambda x: (x[sort_by] is None, x[sort_by]),
@@ -99,14 +96,17 @@ class WebApp:
 
             self.log.debug("Рендеринг шаблона index.html")
             chats = get_chats(self.db_path)
+            ntfy_channels = get_ntfy_channels(self.db_path)
             tag = os.getenv("TAG", "dev")
-            return render_template("index.html", schedules=schedules, db_path=self.db_path, sort_by=sort_by, chats=chats, tag=tag)
+            return render_template(
+                "index.html",
+                schedules=schedules, db_path=self.db_path,
+                sort_by=sort_by, chats=chats, tag=tag,
+                ntfy_channels=ntfy_channels
+            )
 
         @self.app.route("/message/<int:schedule_id>", methods=["GET"])
         def show_message_file(schedule_id: int):
-            """
-            Открывает страницу с таблицей из файла, путь к которому хранится в сообщении (после #!).
-            """
             schedule = get_schedule(schedule_id, self.db_path)
             if not schedule:
                 abort(404, description="Расписание не найдено")
@@ -117,11 +117,12 @@ class WebApp:
             if not os.path.isfile(file_path):
                 abort(404, description=f"Файл не найден: {file_path}")
 
-            # Читаем файл, ожидаем JSON: список словарей с ключами "date" и "text"
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     rows = json.load(f)
-                if not isinstance(rows, list) or not all(isinstance(row, dict) and "date" in row and "text" in row for row in rows):
+                if not isinstance(rows, list) or not all(
+                    isinstance(row, dict) and "date" in row and "text" in row for row in rows
+                ):
                     abort(400, description="Файл должен содержать список словарей с ключами 'date' и 'text'")
             except Exception as e:
                 abort(400, description=f"Ошибка чтения JSON файла: {e}")
@@ -129,19 +130,12 @@ class WebApp:
             tag = os.getenv("TAG", "dev")
             return render_template("message_file.html", rows=rows, schedule=schedule, tag=tag)
 
-
         @self.app.route("/schedules", methods=["GET"])
         def list_schedules():
-            """
-            Возвращает список расписаний в формате JSON.
-            """
             return jsonify(get_schedules(self.db_path))
 
         @self.app.route("/schedules_all", methods=["POST"])
         def create_schedules_by_list():
-            """
-            Создает несколько расписаний из списка JSON объектов.
-            """
             list_data = request.get_json()
             if isinstance(list_data, list):
                 if len(list_data) == 0:
@@ -151,7 +145,7 @@ class WebApp:
 
             for data in list_data:
                 try:
-                    self._validate_schedule_data(data) # Validate data
+                    self._validate_schedule_data(data)
                     add_schedule(data["cron"], data["message"], data.get("modifier", ""), self.db_path)
                 except ValueError as e:
                     abort(400, description=str(e))
@@ -160,17 +154,13 @@ class WebApp:
 
         @self.app.route("/schedules", methods=["POST"])
         def create_schedule():
-            """
-            Создает новое расписание.
-            """
             data = request.get_json()
             try:
-                self._validate_schedule_data(data) # Validate data
+                self._validate_schedule_data(data)
                 add_schedule(data["cron"], data["message"], data.get("modifier", ""), self.db_path)
                 return jsonify({"status": "success"}), 201
             except ValueError as e:
                 abort(400, description=str(e))
-
 
         @self.app.route("/schedules/<int:schedule_id>", methods=["DELETE"])
         def remove_schedule(schedule_id: int):
@@ -179,24 +169,17 @@ class WebApp:
 
         @self.app.route('/schedules/<int:schedule_id>/delete', methods=['POST'])
         def delete_schedule_post(schedule_id: int):
-            """
-            Удаляет расписание по ID (POST запрос).
-            """
             delete_schedule(schedule_id, self.db_path)
             return redirect(url_for('schedules_view'))
 
-
         @self.app.route("/schedules/<int:schedule_id>", methods=["POST"])
         def edit_schedule(schedule_id: int):
-            """
-            Изменяет расписание с ID=schedule_id.
-            """
             data = request.get_json()
             if not data or "cron" not in data or "message" not in data or "chat_id" not in data:
                 abort(400, description="Неверный формат данных")
 
             try:
-                self._validate_schedule_data(data) # Validate data
+                self._validate_schedule_data(data)
                 update_schedule(
                     schedule_id,
                     data["cron"],
@@ -209,43 +192,43 @@ class WebApp:
             except ValueError as e:
                 abort(400, description=str(e))
 
-
         @self.app.route("/edit/<int:schedule_id>", methods=["GET", "POST"])
         def edit_schedule_route(schedule_id: int):
-            """
-            Страница редактирования расписания.
-            """
             schedule = get_schedule(schedule_id, self.db_path)
             if schedule is None:
                 abort(404)
 
             chats = get_chats(self.db_path)
+            ntfy_channels = get_ntfy_channels(self.db_path)
 
             if request.method == "GET":
-                return render_template("edit.html", schedule=schedule, chats=chats)
+                return render_template(
+                    "edit.html",
+                    schedule=schedule, chats=chats, ntfy_channels=ntfy_channels
+                )
 
             cron = request.form.get("cron")
             message = request.form.get("message")
             modifier = request.form.get("modifier", "")
             chat_id = request.form.get("chat_id")
+            ntfy_id_str = request.form.get("ntfy_id", "")
+            ntfy_id = int(ntfy_id_str) if ntfy_id_str else None
+
             if not cron or not message or not chat_id:
                 abort(400, description="Все поля должны быть заполнены")
 
             try:
-                self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message}) # Validate data
-                update_schedule(schedule_id, cron, message, modifier, int(chat_id), self.db_path)
+                self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message})
+                update_schedule(
+                    schedule_id, cron, message, modifier,
+                    int(chat_id), self.db_path, ntfy_id=ntfy_id
+                )
             except ValueError as e:
                 return render_template("error.html", text=str(e)), 400
             return redirect(url_for("schedules_view"))
 
-
         @self.app.route('/list/<int:schedule_id>', methods=['GET'])
         def list_nexts(schedule_id: int):
-            """
-            Отображает список следующих запусков расписания.
-            Для уведомлений о ДР (сообщение начинается с "ДР" и есть дата в modifier в формате YYYYMMDD)
-            в список добавляется возраст на дату каждого события.
-            """
             NEXT = int(os.getenv("TLCR_LIST_ITEMS", "10"))
             schedule = get_schedule(schedule_id, self.db_path)
             if schedule is None:
@@ -262,7 +245,6 @@ class WebApp:
 
             if is_birthday:
                 try:
-                    # modifier в формате YYYYMMDD
                     birth_date = datetime.strptime(modifier.strip(), "%Y%m%d")
                 except ValueError:
                     birth_date = None
@@ -281,13 +263,7 @@ class WebApp:
                 else:
                     text = message
 
-                rows.append(
-                    {
-                        "dt": next_match,
-                        "text": text,
-                    }
-                )
-                # сдвигаем стартовое время, чтобы искать следующее срабатывание
+                rows.append({"dt": next_match, "text": text})
                 current_time = next_match + timedelta(hours=1)
 
             return render_template("list.html", rows=rows, schedule=schedule)
@@ -310,10 +286,7 @@ class WebApp:
             return render_template("chats.html", chats=chats)
 
         @self.app.route('/chats/delete/<int:chat_id>', methods=['GET'])
-        def delete_this_chat(chat_id :int):
-            """
-            Удаляет чат по ID.
-            """
+        def delete_this_chat(chat_id: int):
             try:
                 delete_chat(chat_id, self.db_path)
             except Exception as e:
@@ -321,11 +294,34 @@ class WebApp:
                 return render_template("error.html", text=f"Ошибка при удалении чата: {e}"), 500
             return redirect(url_for("chats_view"))
 
+        @self.app.route("/ntfy", methods=["GET", "POST"])
+        def ntfy_view():
+            if request.method == "POST":
+                name = request.form.get("name")
+                url = request.form.get("url")
+                title = request.form.get("title", "")
+                if not name or not url:
+                    abort(400, description="Название и URL обязательны")
+                try:
+                    add_ntfy_channel(name, url, title or None, self.db_path)
+                except Exception as e:
+                    return render_template("error.html", text=str(e)), 400
+                return redirect(url_for("ntfy_view"))
+
+            channels = get_ntfy_channels(self.db_path)
+            return render_template("ntfy.html", channels=channels)
+
+        @self.app.route("/ntfy/delete/<int:channel_id>", methods=["GET"])
+        def delete_ntfy_channel_view(channel_id: int):
+            try:
+                delete_ntfy_channel(channel_id, self.db_path)
+            except Exception as e:
+                self.log.error(f"Ошибка при удалении ntfy канала: {e}")
+                return render_template("error.html", text=f"Ошибка при удалении ntfy канала: {e}"), 500
+            return redirect(url_for("ntfy_view"))
+
         @self.app.route('/export', methods=['GET'])
         def export_json():
-            """
-            Экспортирует расписания в JSON файл.
-            """
             schedules = get_schedules(self.db_path)
             json_data = json.dumps(schedules, indent=4, ensure_ascii=False)
             with tempfile.NamedTemporaryFile(delete=False, mode='w+', suffix='.json', encoding='utf-8') as temp_file:
@@ -341,11 +337,9 @@ class WebApp:
 
         @self.app.route("/drop_db", methods=["GET"])
         def reset_db():
-            """
-            Пересоздает базу данных.
-            """
             try:
                 init_db(self.db_path)
+                migrate_add_ntfy(self.db_path)
                 return redirect(url_for("schedules_view"))
             except Exception as e:
                 self.log.error("Ошибка при переинициализации БД: %s", str(e))
@@ -353,9 +347,6 @@ class WebApp:
 
         @self.app.template_filter('fromisoformat')
         def fromisoformat_filter(s: str) -> datetime or None:
-            """
-            Фильтр Jinja2 для преобразования строки ISO 8601 в объект datetime.
-            """
             try:
                 return datetime.fromisoformat(s)
             except (ValueError, TypeError):
@@ -363,14 +354,15 @@ class WebApp:
 
         @self.app.template_filter('format_datetime')
         def format_datetime_filter(dt: datetime) -> str:
-            """
-            Фильтр Jinja2 для форматирования строки даты и времени.
-            """
             return dt.strftime('%Y-%m-%d %H:%M %a') if dt else "##"
 
-
     def run(self):
-        self.app.run(debug=os.getenv('DEBUG', 'False').lower() == 'true', port=int(os.getenv('TLCR_FLASK_PORT', 7999)), use_reloader=True)
+        self.app.run(
+            debug=os.getenv('DEBUG', 'False').lower() == 'true',
+            port=int(os.getenv('TLCR_FLASK_PORT', 7999)),
+            use_reloader=True
+        )
+
 
 web = WebApp()
 
