@@ -15,11 +15,20 @@ from lib.db_utils import (
 from lib.utils import get_environment_name, load_env as load_utils_env
 
 
+WEB_LOG = None
+
+
 class WebApp:
     def __init__(self, env_file=None):
+        global WEB_LOG
         self.app = Flask(__name__, template_folder='../templates', static_folder='../static')
         self.setup_app()
-        self.log = init_log('web_app', LOGPATH, LOGLEVEL)
+
+        # Инициализируем логгер web_app только один раз
+        if WEB_LOG is None:
+            WEB_LOG = init_log('web_app', LOGPATH, LOGLEVEL)
+        self.log = WEB_LOG
+
         self.load_env(env_file)
         self.myVCron = VCron(timezone=self.timezone)
         self.setup_routes()
@@ -419,7 +428,7 @@ class WebApp:
             debug=debug,
             host=host,
             port=port,
-            use_reloader=True
+            use_reloader=debug  # перезагрузчик только в debug-режиме
         )
 
 
