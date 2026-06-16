@@ -386,9 +386,13 @@ class WebApp:
             return dt.strftime('%Y-%m-%d %H:%M %a') if dt else "##"
 
     def run(self):
+        debug = os.getenv('DEBUG', 'False').lower() == 'true'
+        port = int(os.getenv('TLCR_FLASK_PORT', 7999))
+        host = os.getenv('TLCR_FLASK_HOST', '0.0.0.0')
         self.app.run(
-            debug=os.getenv('DEBUG', 'False').lower() == 'true',
-            port=int(os.getenv('TLCR_FLASK_PORT', 7999)),
+            debug=debug,
+            host=host,
+            port=port,
             use_reloader=True
         )
 
