@@ -388,7 +388,7 @@ class WebApp:
     def run(self):
         debug = os.getenv('DEBUG', 'False').lower() == 'true'
         port = int(os.getenv('TLCR_FLASK_PORT', 7999))
-        host = os.getenv('TLCR_FLASK_HOST', '0.0.0.0')
+        host = os.getenv('TLCR_FLASK_HOST', '127.0.0.1')
         self.app.run(
             debug=debug,
             host=host,
