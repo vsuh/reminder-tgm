@@ -300,10 +300,30 @@ def add_ntfy_channel(name, url, title, db_path):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO ntfy_channels (name, url, title) VALUES (?, ?, ?)", (name, url, title or None))
+            cursor.execute(
+                "INSERT INTO ntfy_channels (name, url, title) VALUES (?, ?, ?)",
+                (name, url, title or None),
+            )
             conn.commit()
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении ntfy канала: %s", str(e))
+
+
+def update_ntfy_channel(channel_id, name, url, title, db_path):
+    """
+    Обновляет ntfy-канал.
+    """
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE ntfy_channels SET name=?, url=?, title=? WHERE id=?",
+                (name, url, title or None, channel_id),
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        log.error("Ошибка при обновлении ntfy канала: %s", str(e))
+        raise MyError(f"Ошибка при обновлении ntfy канала: {e}")
 
 def delete_ntfy_channel(channel_id, db_path):
     try:

@@ -9,7 +9,8 @@ from lib.db_utils import (
     add_schedule, delete_schedule, get_schedule, get_schedules,
     init_db, init_log, update_schedule,
     add_chat, get_chats, delete_chat,
-    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy
+    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy,
+    update_ntfy_channel, get_ntfy_channel
 )
 from lib.utils import get_environment_name, load_env as load_utils_env
 
@@ -327,6 +328,31 @@ class WebApp:
             except Exception as e:
                 self.log.error(f"Ошибка при удалении ntfy канала: {e}")
                 return render_template("error.html", text=f"Ошибка при удалении ntfy канала: {e}"), 500
+            return redirect(url_for("ntfy_view"))
+
+        @self.app.route("/ntfy/edit/<int:channel_id>", methods=["GET", "POST"])
+        def edit_ntfy_channel_view(channel_id: int):
+            channel = get_ntfy_channel(channel_id, self.db_path)
+            if not channel:
+                abort(404, description="ntfy канал не найден")
+
+            if request.method == "GET":
+                return render_template("ntfy_edit.html", channel=channel)
+
+            # POST — сохраняем изменения
+            name = request.form.get("name")
+            url = request.form.get("url")
+            title = request.form.get("title", "")
+
+            if not name or not url:
+                abort(400, description="Название и URL обязательны")
+
+            try:
+                update_ntfy_channel(channel_id, name, url, title or None, self.db_path)
+            except Exception as e:
+                self.log.error(f"Ошибка при обновлении ntfy канала: {e}")
+                return render_template("error.html", text=f"Ошибка при обновлении ntfy канала: {e}"), 400
+
             return redirect(url_for("ntfy_view"))
 
         @self.app.route('/export', methods=['GET'])
