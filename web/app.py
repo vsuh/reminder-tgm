@@ -51,8 +51,17 @@ class WebApp:
 
         if not self.myVCron.valid(data["cron"]):
             abort(400, description=f'Invalid CRON expression: "{data["cron"]}"')
-        if not self.myVCron.is_valid_modifier(data.get("modifier", "")):
-            abort(400, description=f'Invalid modifier expression "{data.get("modifier", "")}"')
+
+        # Валидация модификатора через VCron.check_modifier
+        modifier = data.get("modifier", "") or ""
+        if modifier:
+            try:
+                now = datetime.now(tz=self.myVCron.timezone)
+                # check_modifier возвращает bool: False трактуем как неверный модификатор
+                if not self.myVCron.check_modifier(modifier, now):
+                    abort(400, description=f'Invalid modifier expression "{modifier}"')
+            except Exception:
+                abort(400, description=f'Invalid modifier expression "{modifier}"')
 
     def setup_routes(self):
         @self.app.route('/test')
@@ -334,6 +343,26 @@ class WebApp:
                 as_attachment=True,
                 download_name='schedules_export.json'
             )
+
+        @self.app.route("/api_doc", methods=["GET"])
+        def download_api_doc():
+            """Отдать API-док как файл, сгенерированный из API_DOC_TEXT."""
+            # пишем во временный файл, чтобы send_file отдал attachment
+            tmp = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".md", encoding="utf-8")
+            try:
+                tmp.write(API_DOC_TEXT)
+                tmp.flush()
+                tmp.close()
+                return send_file(
+                    tmp.name,
+                    mimetype="text/markdown",
+                    as_attachment=True,
+                    download_name="API.md",
+                )
+            finally:
+                # файл удалится автоматически системой после рестарта/очистки temp;
+                # можно не удалять вручную, чтобы не гоняться за временем жизни ответа
+                pass
 
         @self.app.route("/drop_db", methods=["GET"])
         def reset_db():

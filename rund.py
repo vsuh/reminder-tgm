@@ -97,10 +97,23 @@ def send_telegram_message(message: str, chat_id: int):
 def send_ntfy_message(url: str, message: str, title: str = None):
     """
     Отправляет уведомление в ntfy.sh топик.
+
+    ВАЖНО: HTTP-заголовки должны быть совместимы с latin-1.
+    Если title содержит не-ASCII символы, заголовок Title не отправляется.
     """
     headers = {"Content-Type": "text/plain; charset=utf-8"}
+
     if title:
-        headers["Title"] = title
+        try:
+            # Проверяем, что заголовок можно кодировать в latin-1 без ошибок
+            title.encode("latin-1")
+            headers["Title"] = title
+        except UnicodeEncodeError:
+            log.warning(
+                "Заголовок ntfy Title содержит не-ASCII символы и будет опущен: %r",
+                title,
+            )
+
     try:
         response = requests.post(url, data=message.encode("utf-8"), headers=headers)
         response.raise_for_status()

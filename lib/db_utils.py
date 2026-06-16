@@ -67,8 +67,8 @@ def run_initialization(conn, drop_table, db_path):
                         modifier TEXT,
                         last_fired TIMESTAMP,
                         chat_id INTEGER NOT NULL,
-                        FOREIGN KEY (chat_id) REFERENCES chats(id),
-                        FOREIGN KEY (ntfy_id) REFERENCES ntfy_channels(id)
+                        ntfy_id INTEGER,
+                        FOREIGN KEY (chat_id) REFERENCES chats(id)
                     )''',
         cursor,
         conn,
@@ -111,7 +111,8 @@ def migrate_add_ntfy(db_path=DB_PATH):
             cursor.execute("PRAGMA table_info(schedules)")
             columns = [row[1] for row in cursor.fetchall()]
             if "ntfy_id" not in columns:
-                cursor.execute("ALTER TABLE schedules ADD COLUMN ntfy_id INTEGER REFERENCES ntfy_channels(id)")
+                # Для существующих БД просто добавляем INTEGER-колонку без FOREIGN KEY
+                cursor.execute("ALTER TABLE schedules ADD COLUMN ntfy_id INTEGER")
             conn.commit()
             log.info("Миграция ntfy выполнена успешно")
     except sqlite3.Error as e:

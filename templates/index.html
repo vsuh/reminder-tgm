@@ -50,6 +50,7 @@
                     <th scope="col">Сообщение</th>
                     <th scope="col">Модификатор</th>
                     <th scope="col">Кому</th>
+                    <th scope="col">ntfy</th>
                     <th scope="col">Следующий</th>
                     <th scope="col">&nbsp;</th>
                     <th scope="col">id</th>
@@ -67,21 +68,31 @@
                     <td>
                         {% if schedule.message.startswith('#!') %}
                         <a href="{{ url_for('show_message_file', schedule_id=schedule.id) }}"
-                            style="color: #000; text-decoration: none;" title="показать содержимое файла">{{
-                            schedule.message }}</a>
+                            style="color: #000; text-decoration: none;" title="показать содержимое файла">
+                            {{ schedule.message }}
+                        </a>
                         {% else %}
                         {{ schedule.message }}
                         {% endif %}
                     </td>
                     <td>{{ schedule.modifier }}</td>
                     <td>{{ schedule.chat_name }}</td>
-
+                    <td>
+                        {% if schedule.ntfy_id %}
+                            {% set ch = (ntfy_channels | selectattr('id', 'equalto', schedule.ntfy_id) | list | first) %}
+                            {{ ch.name if ch else ('#' ~ schedule.ntfy_id) }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                     <td>{{ schedule.next | fromisoformat | format_datetime }}</td>
                     <td>
-                        <a href="/edit/{{ schedule.id }}" title="Редактировать"><i
-                                class="fas fa-edit text-primary mr-2"></i></a>
-                        <a href="/list/{{ schedule.id }}" title="Следующие 10"><i
-                                class="fas fa-list-ol text-primary mr-2"></i></a>
+                        <a href="/edit/{{ schedule.id }}" title="Редактировать">
+                            <i class="fas fa-edit text-primary mr-2"></i>
+                        </a>
+                        <a href="/list/{{ schedule.id }}" title="Следующие 10">
+                            <i class="fas fa-list-ol text-primary mr-2"></i>
+                        </a>
                         <form action="/schedules/{{ schedule.id }}/delete" method="post" style="display: inline-block;">
                             <button type="submit" title="Удалить ❌" onclick="return confirm('Вы уверены?')"
                                 class="btn btn-link text-danger p-0 border-0">
@@ -109,12 +120,13 @@
                 <input type="text" class="form-control" id="cron" name="cron" required
                     placeholder="Например: 0 9 * * 1-5 (М Ч Д Мс Н)">
                 <div class="form-text">Формат: М Ч Д Мс Н (например, 0 9 * * 1-5)</div>
-
             </div>
+
             <div class="form-group">
                 <label for="message">Сообщение:</label>
                 <textarea class="form-control" id="message" name="message" rows="3" required></textarea>
             </div>
+
             <div class="form-group">
                 <label for="chat_id">Chat:</label>
                 <select class="form-control" id="chat_id" name="chat_id">
@@ -125,17 +137,39 @@
             </div>
 
             <div class="form-group">
+                <label for="ntfy_id">ntfy канал (опционально):</label>
+                <select class="form-control" id="ntfy_id" name="ntfy_id">
+                    <option value="">-- без ntfy --</option>
+                    {% for ch in ntfy_channels %}
+                    <option value="{{ ch.id }}">{{ ch.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text">
+                    Список каналов настраивается на странице
+                    <a href="/ntfy">ntfy-каналы</a>.
+                </small>
+            </div>
+
+            <div class="form-group">
                 <label for="modifier">Модификатор:</label>
                 <input type="text" class="form-control" id="modifier" name="modifier"
                     placeholder="Например: ГГГГММДД>d/NN">
                 <div class="form-text">Пример: ГГГГММДД&gt;d/NN</div>
-
             </div>
-            <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i>&nbsp; Добавить</button>
-            <a href="/chats" class="btn btn-primary"><i class="far fa-edit"></i>&nbsp; Управление чатами</a>
+
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-plus"></i>&nbsp; Добавить
+            </button>
+            <a href="/chats" class="btn btn-primary">
+                <i class="far fa-edit"></i>&nbsp; Управление чатами
+            </a>
+            <a href="/ntfy" class="btn btn-secondary">
+                <i class="far fa-bell"></i>&nbsp; ntfy-каналы
+            </a>
             <button type="button" class="btn btn-warning"
-                onclick="if (confirm('БД {{ db_path }} будет УДАЛЕНА и создана вновь пустой.\nЭто действие необратимо. Вы уверены?')) { location.href='/drop_db'; } return false;"><i
-                    class="fas fa-trash-alt" style="color:rgb(81, 48, 136);"></i>&nbsp; Очистить базу данных</button>
+                onclick="if (confirm('БД {{ db_path }} будет УДАЛЕНА и создана вновь пустой.\nЭто действие необратимо. Вы уверены?')) { location.href='/drop_db'; } return false;">
+                <i class="fas fa-trash-alt" style="color:rgb(81, 48, 136);"></i>&nbsp; Очистить базу данных
+            </button>
         </form>
 
         <hr>
