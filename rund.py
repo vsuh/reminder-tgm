@@ -1,17 +1,21 @@
 """
-Отправляет уведомление в Telegram (и опционально в ntfy), если находит подходящее в БД
+Демон напоминаний: периодически проверяет расписания,
+отправляет уведомления в Telegram и (опционально) в ntfy.
 """
 import os
+import time
 import requests
 import pytz
 from datetime import datetime
 import multiprocessing
 import json
+import signal
+import sys
 
 from lib.cron_utils import VCron
 from lib.db_utils import (
     update_last_fired, get_chats, get_schedules as db_get_schedules,
-    get_ntfy_channel,
+    get_ntfy_channel, backup_database,
     DB_PATH, LOGPATH, LOGLEVEL
 )
 from lib.utils import get_environment_name, init_log, load_env
@@ -33,6 +37,30 @@ log = init_log('rmndr', LOGPATH, LOGLEVEL)
 
 # Initialize VCron
 myVCron = VCron(TIMEZONE)
+
+# Глобальная переменная для отслеживания состояния работы
+running = True
+# Список активных процессов
+active_processes: list[multiprocessing.Process] = []
+
+
+def signal_handler(signum, frame):
+    """
+    Обработчик сигналов для корректного завершения работы.
+    """
+    global running
+    if signum == signal.SIGINT:
+        log.info("Получен сигнал прерывания (Ctrl-C). Завершаем работу...")
+        running = False
+        for p in active_processes:
+            if p.is_alive():
+                log.debug(f"Завершаем процесс {p.pid}")
+                p.terminate()
+                p.join(timeout=5)
+                if p.is_alive():
+                    log.warning(f"Процесс {p.pid} не завершился корректно, убиваем принудительно")
+                    p.kill()
+        sys.exit(0)
 
 
 def get_message_from_json(message: str) -> str:
@@ -94,7 +122,7 @@ def send_telegram_message(message: str, chat_id: int):
         log.error("Ошибка при отправке сообщения: %s, ошибка: %s", formatted_message, e)
 
 
-def send_ntfy_message(url: str, message: str, title: str = None):
+def send_ntfy_message(url: str, message: str, title: str | None = None):
     """
     Отправляет уведомление в ntfy.sh топик.
 
@@ -105,7 +133,6 @@ def send_ntfy_message(url: str, message: str, title: str = None):
 
     if title:
         try:
-            # Проверяем, что заголовок можно кодировать в latin-1 без ошибок
             title.encode("latin-1")
             headers["Title"] = title
         except UnicodeEncodeError:
@@ -144,7 +171,7 @@ def calculate_age(birth_date: datetime, today: datetime) -> int:
     return years
 
 
-def check_and_send(schedule, myVCron, timezone):
+def check_and_send(schedule, myVCron: VCron, timezone):
     """
     Проверяет расписание и отправляет уведомление, если необходимо.
     Эта функция предназначена для запуска в отдельном процессе.
@@ -180,7 +207,7 @@ def check_and_send(schedule, myVCron, timezone):
             log.error(f"Не найден chat_id для schedule_id={record_key}")
             return
 
-        # Вычисляем итоговый текст один раз для обоих каналов
+        # Один раз формируем итоговый текст (учитывая shebang)
         actual_message = get_message_from_json(message)
 
         send_telegram_message(actual_message, chat_id)
@@ -203,24 +230,68 @@ def check_and_send(schedule, myVCron, timezone):
 
 
 def main():
-    """Основная функция скрипта."""
+    """Основная функция демона напоминаний."""
+    global running, active_processes
+
+    # Устанавливаем обработчик Ctrl-C
+    signal.signal(signal.SIGINT, signal_handler)
+
     timezone = pytz.timezone(TIMEZONE)
-    now = datetime.now(timezone)
+    myVCron_local = VCron(TIMEZONE)
+    last_backup_time = time.time()
 
-    log.info(f"Запуск скрипта напоминаний ({environment}) {now.strftime('%d-%m-%Y %H:%M:%S')}")
+    log.info("Демон напоминаний запущен. Для завершения нажмите Ctrl-C")
 
-    if schedules := db_get_schedules(DB_PATH):
-        processes = []
-        for schedule in schedules:
-            p = multiprocessing.Process(target=check_and_send, args=(schedule, myVCron, timezone))
-            log.debug(f"Выполнение расписания {schedule}")
-            processes.append(p)
-            p.start()
+    while running:
+        try:
+            now = datetime.now(timezone)
+            log.info(f"Проверка расписаний ({now.strftime('%d-%m-%Y %H:%M:%S')})")
 
-        for p in processes:
-            p.join()
+            # Проверяем необходимость создания резервной копии
+            current_time = time.time()
+            work_time = int(current_time - last_backup_time)
+            if work_time >= BACKUP_HOURS * 3600 or work_time == 0:
+                try:
+                    backup_database(backup_dir=BACKUP_DIR, db_path=DB_PATH)
+                    last_backup_time = current_time
+                except Exception as e:
+                    log.error(f"Ошибка при создании резервной копии: {e}")
 
-    log.info(f"Завершение работы скрипта {datetime.now(timezone).strftime('%d-%m-%Y %H:%M:%S')}")
+            # Чистим список активных процессов от завершённых
+            active_processes = [p for p in active_processes if p.is_alive()]
+
+            if schedules := db_get_schedules(DB_PATH):
+                for schedule in schedules:
+                    if not running:
+                        break
+                    p = multiprocessing.Process(
+                        target=check_and_send,
+                        args=(schedule, myVCron_local, timezone),
+                    )
+                    log.debug(f"Выполнение расписания {schedule}")
+                    active_processes.append(p)
+                    p.start()
+
+                # Ждём завершения с таймаутом, чтобы не зависнуть
+                for p in active_processes:
+                    p.join(timeout=10)
+                    if p.is_alive():
+                        log.warning(f"Процесс {p.pid} не завершился вовремя")
+
+            if running:
+                CHECK_INTERVAL = CHECK_MINUTES * 60
+                log.info(f"Следующая проверка через {CHECK_INTERVAL} секунд")
+                for _ in range(CHECK_INTERVAL):
+                    if not running:
+                        break
+                    time.sleep(1)
+
+        except Exception as e:
+            log.error(f"Неожиданная ошибка в главном цикле: {e}")
+            if running:
+                time.sleep(60)
+
+    log.info("Демон напоминаний завершил работу")
 
 
 if __name__ == "__main__":
