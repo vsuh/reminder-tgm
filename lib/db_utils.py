@@ -31,15 +31,20 @@ def init_db(db_path=DB_PATH, drop_table=True):
     try:
         with sqlite3.connect(db_path) as conn:
             run_initialization(conn, drop_table, db_path)
-        log.info(f"Таблицы базы данных '{db_path}.schedules,chats' успешно {'пересозданы' if drop_table else 'установлены'}")
-        init_db._initialized = True # Mark as initialized
+        log.info(
+            f"Таблицы базы данных '{db_path}.schedules,chats' "
+            f"успешно {'пересозданы' if drop_table else 'установлены'}"
+        )
+        init_db._initialized = True  # Mark as initialized
     except sqlite3.Error as e:
         log.error(f"Ошибка инициализации БД '{db_path}': %s", str(e))
+
 
 def run_create_table(arg1, cursor, conn):
     sql = f'''CREATE TABLE {arg1}'''
     cursor.execute(sql)
     conn.commit()
+
 
 def run_initialization(conn, drop_table, db_path):
     """
@@ -50,7 +55,7 @@ def run_initialization(conn, drop_table, db_path):
         drop_table (bool): Флаг, указывающий на необходимость удаления существующей таблицы.
         db_path (str): Путь к файлу базы данных.
     """
-    conn.execute("PRAGMA journal_mode=WAL;") # Add WAL mode for better concurrency
+    conn.execute("PRAGMA journal_mode=WAL;")  # Add WAL mode for better concurrency
     cursor = conn.cursor()
     cursor.execute("PRAGMA encoding = 'UTF-8';")
 
@@ -93,6 +98,7 @@ def run_initialization(conn, drop_table, db_path):
         conn,
     )
 
+
 def migrate_add_ntfy(db_path=DB_PATH):
     """Добавляет столбец ntfy_id в schedules и таблицу ntfy_channels, если их нет."""
     try:
@@ -117,32 +123,56 @@ def migrate_add_ntfy(db_path=DB_PATH):
             log.info("Миграция ntfy выполнена успешно")
     except sqlite3.Error as e:
         log.error("Ошибка миграции ntfy: %s", str(e))
-        
+
+
 def get_schedules(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id FROM schedules")
-            return [{"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3],
-                    "last_fired": row[4], "chat_id": row[5], "ntfy_id": row[6]} for row in cursor.fetchall()]
+            return [
+                {
+                    "id": row[0],
+                    "cron": row[1],
+                    "message": row[2],
+                    "modifier": row[3],
+                    "last_fired": row[4],
+                    "chat_id": row[5],
+                    "ntfy_id": row[6],
+                }
+                for row in cursor.fetchall()
+            ]
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписаний: %s", str(e))
         return []
 
-def get_schedule(schedule_id, db_path) -> dict or None:
+
+def get_schedule(schedule_id, db_path) -> dict | None:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id FROM schedules WHERE id = ?", (schedule_id,))
+            cursor.execute(
+                "SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id "
+                "FROM schedules WHERE id = ?",
+                (schedule_id,),
+            )
             row = cursor.fetchone()
             if row:
-                return {"id": row[0], "cron": row[1], "message": row[2], "modifier": row[3],
-                        "last_fired": row[4], "chat_id": row[5], "ntfy_id": row[6]}
+                return {
+                    "id": row[0],
+                    "cron": row[1],
+                    "message": row[2],
+                    "modifier": row[3],
+                    "last_fired": row[4],
+                    "chat_id": row[5],
+                    "ntfy_id": row[6],
+                }
             return None
     except sqlite3.Error as e:
         log.error("Ошибка при получении расписания: %s", str(e))
         return None
-    
+
+
 def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
     try:
         with sqlite3.connect(db_path) as conn:
@@ -151,8 +181,9 @@ def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
             if cursor.fetchone()[0] == 0:
                 raise MyError("Нельзя добавить расписание: таблица chats пуста.")
             cursor.execute(
-                "INSERT INTO schedules (cron, message, modifier, chat_id, ntfy_id) VALUES (?, ?, ?, ?, ?)",
-                (cron, message, modifier, chat_id, ntfy_id or None)
+                "INSERT INTO schedules (cron, message, modifier, chat_id, ntfy_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (cron, message, modifier, chat_id, ntfy_id or None),
             )
             conn.commit()
     except sqlite3.Error as e:
@@ -160,6 +191,7 @@ def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
     except MyError as me:
         log.error(str(me))
         raise
+
 
 def delete_schedule(schedule_id, db_path):
     """
@@ -178,6 +210,7 @@ def delete_schedule(schedule_id, db_path):
     except sqlite3.Error as e:
         log.error("Ошибка при удалении расписания: %s", str(e))
 
+
 def get_chats(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
@@ -188,6 +221,7 @@ def get_chats(db_path) -> list:
         log.error("Ошибка при получении чатов: %s", str(e))
         return []
 
+
 def add_chat(name, chat_id, db_path):
     try:
         with sqlite3.connect(db_path) as conn:
@@ -197,6 +231,7 @@ def add_chat(name, chat_id, db_path):
             log.info("Добавлен новый чат: %s, %s", name, chat_id)
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении чата: %s", str(e))
+
 
 def delete_chat(chat_id, db_path):
     """
@@ -215,13 +250,10 @@ def delete_chat(chat_id, db_path):
         log.error("Ошибка при удалении чата: %s", str(e))
         raise MyError(f"Ошибка при удалении чата: {e}")
 
+
 def update_last_fired(schedule_id, db_path):
     """
     Обновляет поле last_fired для расписания с id=schedule_id.
-
-    Args:
-        schedule_id (int): ID расписания.
-        db_path (str): Путь к файлу базы данных.
     """
     try:
         with sqlite3.connect(db_path) as conn:
@@ -233,27 +265,32 @@ def update_last_fired(schedule_id, db_path):
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении last_fired: %s", str(e))
 
+
 def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path, ntfy_id=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE schedules SET cron=?, message=?, modifier=?, chat_id=?, ntfy_id=? WHERE id=?",
-                (cron, message, modifier, chat_id, ntfy_id or None, schedule_id)
+                (cron, message, modifier, chat_id, ntfy_id or None, schedule_id),
             )
             conn.commit()
         return None
     except sqlite3.Error as e:
         log.error("Ошибка при обновлении расписания: %s", str(e))
 
+
 def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
     """
     Создает резервную копию базы данных 
-    и удаляет старые копии, оставляя только 3 последних
+    и удаляет старые копии, оставляя только 3 последних.
 
     Args:
         db_path (str): Путь к файлу базы данных
         backup_dir (str): Путь к директории для резервных копий
+
+    Returns:
+        Path: путь к созданному файлу бэкапа
     """
     backup_path = Path(backup_dir)
     backup_path.mkdir(parents=True, exist_ok=True)
@@ -274,7 +311,6 @@ def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
             reverse=True,
         )
 
-        # Удаляем все файлы, кроме трех последних
         for old_backup in backup_files[3:]:
             try:
                 old_backup.unlink()
@@ -282,19 +318,26 @@ def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
             except Exception as e:
                 log.warning(f"Не удалось удалить старую резервную копию {old_backup}: {e}")
 
+        return backup_file
+
     except sqlite3.Error as e:
         log.error(f"Ошибка при создании резервной копии БД: {e}")
         raise MyError(f"Ошибка при создании резервной копии БД: {e}")
+
 
 def get_ntfy_channels(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, name, url, title FROM ntfy_channels")
-            return [{"id": row[0], "name": row[1], "url": row[2], "title": row[3]} for row in cursor.fetchall()]
+            return [
+                {"id": row[0], "name": row[1], "url": row[2], "title": row[3]}
+                for row in cursor.fetchall()
+            ]
     except sqlite3.Error as e:
         log.error("Ошибка при получении ntfy каналов: %s", str(e))
         return []
+
 
 def add_ntfy_channel(name, url, title, db_path):
     try:
@@ -325,6 +368,7 @@ def update_ntfy_channel(channel_id, name, url, title, db_path):
         log.error("Ошибка при обновлении ntfy канала: %s", str(e))
         raise MyError(f"Ошибка при обновлении ntfy канала: {e}")
 
+
 def delete_ntfy_channel(channel_id, db_path):
     try:
         with sqlite3.connect(db_path) as conn:
@@ -337,11 +381,15 @@ def delete_ntfy_channel(channel_id, db_path):
         log.error("Ошибка при удалении ntfy канала: %s", str(e))
         raise MyError(f"Ошибка при удалении ntfy канала: {e}")
 
-def get_ntfy_channel(channel_id, db_path) -> dict or None:
+
+def get_ntfy_channel(channel_id, db_path) -> dict | None:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, url, title FROM ntfy_channels WHERE id=?", (channel_id,))
+            cursor.execute(
+                "SELECT id, name, url, title FROM ntfy_channels WHERE id=?",
+                (channel_id,),
+            )
             row = cursor.fetchone()
             return {"id": row[0], "name": row[1], "url": row[2], "title": row[3]} if row else None
     except sqlite3.Error as e:
