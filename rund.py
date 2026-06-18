@@ -36,6 +36,9 @@ BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "static/db.bak")
 BACKUP_SCP_ODD = os.getenv("TLCR_BACKUP_SCP_ODD", "").strip()
 BACKUP_SCP_EVEN = os.getenv("TLCR_BACKUP_SCP_EVEN", "").strip()
 BACKUP_SSH_KEY_PATH = os.getenv("TLCR_BACKUP_SSH_KEY_PATH", "").strip()
+BACKUP_SSH_PORT_ODD = int(os.getenv("TLCR_BACKUP_SSH_PORT_ODD", "22"))
+BACKUP_SSH_PORT_EVEN = int(os.getenv("TLCR_BACKUP_SSH_PORT_EVEN", "22"))
+
 # ntfy-топик для аварийных уведомлений о сбое scp
 BACKUP_SCP_ERROR_NTFY_URL = "https://ntfy.sh/HELOR_tg_cron_notify_1956GH7y"
 
@@ -164,11 +167,23 @@ def replicate_backup_via_scp(backup_file_path: str):
     Требуется настроенная беспарольная авторизация ssh (ключ монтируется в контейнер
     и путь задаётся через TLCR_BACKUP_SSH_KEY_PATH).
 
-    TLCR_BACKUP_SCP_ODD  - scp-цель для нечётных дней (например, user@host:/path)
-    TLCR_BACKUP_SCP_EVEN - scp-цель для чётных дней
+    TLCR_BACKUP_SCP_ODD       - scp-цель для нечётных дней (user@host:/path)
+    TLCR_BACKUP_SCP_EVEN      - scp-цель для чётных дней
+    TLCR_BACKUP_SSH_PORT_ODD  - порт ssh/scp для нечётных дней (по умолчанию 22)
+    TLCR_BACKUP_SSH_PORT_EVEN - порт ssh/scp для чётных дней
 
     При неудаче отправляет уведомление в резервный ntfy-топик BACKUP_SCP_ERROR_NTFY_URL.
+
+    ВАЖНО: выполняется только в режиме prod (environment == "prod").
     """
+    # В не-prod окружениях (dev/test) репликацию не выполняем
+    if environment.lower() != "prod":
+        log.debug(
+            "Пропуск scp-репликации бэкапа (environment=%s, backup=%s)",
+            environment, backup_file_path
+        )
+        return
+
     if not BACKUP_SCP_ODD and not BACKUP_SCP_EVEN:
         # Ничего не настроено — выходим
         return
@@ -176,6 +191,7 @@ def replicate_backup_via_scp(backup_file_path: str):
     day_of_year = int(datetime.now().strftime("%j"))
     is_odd = (day_of_year % 2 == 1)
     target = BACKUP_SCP_ODD if is_odd else BACKUP_SCP_EVEN
+    port = BACKUP_SSH_PORT_ODD if is_odd else BACKUP_SSH_PORT_EVEN
 
     if not target:
         log.warning(
@@ -187,12 +203,14 @@ def replicate_backup_via_scp(backup_file_path: str):
 
     ssh_opts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
     key_part = f"-i {BACKUP_SSH_KEY_PATH}" if BACKUP_SSH_KEY_PATH else ""
-    cmd = f"scp {ssh_opts} {key_part} {backup_file_path} {target}"
+    port_part = f"-P {port}" if port else ""
+    cmd = f"scp {ssh_opts} {key_part} {port_part} {backup_file_path} {target}"
 
     log.info(
-        "Отправка бэкапа по scp (day_of_year=%d, %s день): %s",
+        "Отправка бэкапа по scp (day_of_year=%d, %s день, port=%s): %s",
         day_of_year,
         "нечётный" if is_odd else "чётный",
+        port,
         cmd,
     )
 
@@ -205,6 +223,7 @@ def replicate_backup_via_scp(backup_file_path: str):
                 f"Ошибка scp бэкапа\n"
                 f"Файл: {backup_file_path}\n"
                 f"Цель: {target}\n"
+                f"Порт: {port}\n"
                 f"Код выхода: {exit_code}"
             )
             log.error(msg)
@@ -214,6 +233,7 @@ def replicate_backup_via_scp(backup_file_path: str):
             f"Исключение при scp бэкапа\n"
             f"Файл: {backup_file_path}\n"
             f"Цель: {target}\n"
+            f"Порт: {port}\n"
             f"Ошибка: {e}"
         )
         log.error("Ошибка при отправке бэкапа по scp: %s", e)
