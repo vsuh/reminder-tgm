@@ -183,7 +183,7 @@ def replicate_backup_via_scp(backup_file_path: str):
             environment, backup_file_path
         )
         return
-    print("+++++++++++++++++++++++ ", BACKUP_SCP_ERROR_NTFY_URL)
+    
     if not BACKUP_SCP_ODD and not BACKUP_SCP_EVEN:
         # Ничего не настроено — выходим
         return
