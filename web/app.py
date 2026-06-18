@@ -2,7 +2,10 @@ import os
 import json
 import tempfile
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, render_template, redirect, url_for, abort, send_file
+from flask import (
+    Flask, request, jsonify, render_template,
+    redirect, url_for, abort, send_file, session, flash
+)
 from lib.cron_utils import VCron
 from lib.db_utils import (
     DB_PATH, LOGLEVEL, LOGPATH,
@@ -37,16 +40,23 @@ class WebApp:
 
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
-        self.app.config["SECRET_KEY"] = os.getenv("TLCR_SECRET_KEY", os.urandom(12).hex())
+        # SECRET_KEY должен быть задан в .env для продакшена
+        self.app.config["SECRET_KEY"] = os.getenv("TLCR_SECRET_KEY", os.urandom(32).hex())
 
     def load_env(self, env_file):
         env = get_environment_name()
         load_utils_env(env)
         if env_file:
-            load_dotenv(dotenv_path=env_file, override=True)
+            from dotenv import load_dotenv as _load_dotenv
+            _load_dotenv(dotenv_path=env_file, override=True)
 
         self.db_path = DB_PATH
         self.timezone = os.getenv("TLCR_TZ", "UTC")
+
+        # Настройки аутентификации
+        self.auth_user = os.getenv("TLCR_WEB_USER")
+        self.auth_password = os.getenv("TLCR_WEB_PASSWORD")
+        self.auth_enabled = bool(self.auth_user and self.auth_password)
 
     @staticmethod
     def _calculate_age_for_date(birth_date: datetime, at_date: datetime) -> int:
@@ -73,12 +83,75 @@ class WebApp:
             except Exception:
                 abort(400, description=f'Invalid modifier expression "{modifier}"')
 
+    # --- Аутентификация (через сессию) ---
+
+    def _check_auth(self, username: str | None, password: str | None) -> bool:
+        """
+        Проверяет логин/пароль против значений из .env.
+        Если auth отключён (нет логина/пароля), всегда возвращает True.
+        """
+        if not self.auth_enabled:
+            return True
+        return username == self.auth_user and password == self.auth_password
+
+    def require_login(self, view_func):
+        """
+        Декоратор для защиты роутов через сессию.
+        Если auth отключён, просто проксирует вызов.
+        """
+        from functools import wraps
+
+        @wraps(view_func)
+        def wrapped(*args, **kwargs):
+            if not self.auth_enabled:
+                return view_func(*args, **kwargs)
+            if not session.get("logged_in"):
+                # запоминаем, куда хотели попасть
+                next_url = request.path
+                return redirect(url_for("login", next=next_url))
+            return view_func(*args, **kwargs)
+
+        return wrapped
+
     def setup_routes(self):
         @self.app.route('/test')
         def test_route():
             return 'ok'
 
+        # --- login/logout ---
+
+        @self.app.route("/login", methods=["GET", "POST"])
+        def login():
+            """
+            Простейшая страница логина.
+            """
+            if not self.auth_enabled:
+                # если auth не настроен, просто перенаправляем на главную
+                return redirect(url_for("schedules_view"))
+
+            error = None
+            if request.method == "POST":
+                username = request.form.get("username")
+                password = request.form.get("password")
+                if self._check_auth(username, password):
+                    session["logged_in"] = True
+                    session["username"] = username
+                    next_url = request.args.get("next") or url_for("schedules_view")
+                    return redirect(next_url)
+                else:
+                    error = "Неверный логин или пароль"
+
+            return render_template("login.html", error=error)
+
+        @self.app.route("/logout", methods=["GET"])
+        def logout():
+            session.clear()
+            return redirect(url_for("login"))
+
+        # --- основной UI ---
+
         @self.app.route("/", methods=["GET", "POST"])
+        @self.require_login
         def schedules_view():
             if request.method == "POST":
                 cron = request.form.get("cron")
@@ -125,6 +198,7 @@ class WebApp:
             )
 
         @self.app.route("/message/<int:schedule_id>", methods=["GET"])
+        @self.require_login
         def show_message_file(schedule_id: int):
             schedule = get_schedule(schedule_id, self.db_path)
             if not schedule:
@@ -150,10 +224,12 @@ class WebApp:
             return render_template("message_file.html", rows=rows, schedule=schedule, tag=tag)
 
         @self.app.route("/schedules", methods=["GET"])
+        @self.require_login
         def list_schedules():
             return jsonify(get_schedules(self.db_path))
 
         @self.app.route("/schedules_all", methods=["POST"])
+        @self.require_login
         def create_schedules_by_list():
             list_data = request.get_json()
             if isinstance(list_data, list):
@@ -172,6 +248,7 @@ class WebApp:
             return jsonify({"status": "success"}), 201
 
         @self.app.route("/schedules", methods=["POST"])
+        @self.require_login
         def create_schedule():
             data = request.get_json()
             try:
@@ -182,16 +259,19 @@ class WebApp:
                 abort(400, description=str(e))
 
         @self.app.route("/schedules/<int:schedule_id>", methods=["DELETE"])
+        @self.require_login
         def remove_schedule(schedule_id: int):
             delete_schedule(schedule_id, self.db_path)
             return jsonify({"status": "deleted"})
 
         @self.app.route('/schedules/<int:schedule_id>/delete', methods=['POST'])
+        @self.require_login
         def delete_schedule_post(schedule_id: int):
             delete_schedule(schedule_id, self.db_path)
             return redirect(url_for('schedules_view'))
 
         @self.app.route("/schedules/<int:schedule_id>", methods=["POST"])
+        @self.require_login
         def edit_schedule(schedule_id: int):
             data = request.get_json()
             if not data or "cron" not in data or "message" not in data or "chat_id" not in data:
@@ -212,6 +292,7 @@ class WebApp:
                 abort(400, description=str(e))
 
         @self.app.route("/edit/<int:schedule_id>", methods=["GET", "POST"])
+        @self.require_login
         def edit_schedule_route(schedule_id: int):
             schedule = get_schedule(schedule_id, self.db_path)
             if schedule is None:
@@ -247,6 +328,7 @@ class WebApp:
             return redirect(url_for("schedules_view"))
 
         @self.app.route('/list/<int:schedule_id>', methods=['GET'])
+        @self.require_login
         def list_nexts(schedule_id: int):
             NEXT = int(os.getenv("TLCR_LIST_ITEMS", "10"))
             schedule = get_schedule(schedule_id, self.db_path)
@@ -288,6 +370,7 @@ class WebApp:
             return render_template("list.html", rows=rows, schedule=schedule)
 
         @self.app.route("/chats", methods=["GET", "POST"])
+        @self.require_login
         def chats_view():
             if request.method == "POST":
                 name = request.form.get("name")
@@ -305,6 +388,7 @@ class WebApp:
             return render_template("chats.html", chats=chats)
 
         @self.app.route('/chats/delete/<int:chat_id>', methods=['GET'])
+        @self.require_login
         def delete_this_chat(chat_id: int):
             try:
                 delete_chat(chat_id, self.db_path)
@@ -314,6 +398,7 @@ class WebApp:
             return redirect(url_for("chats_view"))
 
         @self.app.route("/ntfy", methods=["GET", "POST"])
+        @self.require_login
         def ntfy_view():
             if request.method == "POST":
                 name = request.form.get("name")
@@ -331,6 +416,7 @@ class WebApp:
             return render_template("ntfy.html", channels=channels)
 
         @self.app.route("/ntfy/delete/<int:channel_id>", methods=["GET"])
+        @self.require_login
         def delete_ntfy_channel_view(channel_id: int):
             try:
                 delete_ntfy_channel(channel_id, self.db_path)
@@ -340,6 +426,7 @@ class WebApp:
             return redirect(url_for("ntfy_view"))
 
         @self.app.route("/ntfy/edit/<int:channel_id>", methods=["GET", "POST"])
+        @self.require_login
         def edit_ntfy_channel_view(channel_id: int):
             channel = get_ntfy_channel(channel_id, self.db_path)
             if not channel:
@@ -365,6 +452,7 @@ class WebApp:
             return redirect(url_for("ntfy_view"))
 
         @self.app.route('/export', methods=['GET'])
+        @self.require_login
         def export_json():
             schedules = get_schedules(self.db_path)
             json_data = json.dumps(schedules, indent=4, ensure_ascii=False)
@@ -379,27 +467,8 @@ class WebApp:
                 download_name='schedules_export.json'
             )
 
-        @self.app.route("/api_doc", methods=["GET"])
-        def download_api_doc():
-            """Отдать API-док как файл, сгенерированный из API_DOC_TEXT."""
-            # пишем во временный файл, чтобы send_file отдал attachment
-            tmp = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".md", encoding="utf-8")
-            try:
-                tmp.write(API_DOC_TEXT)
-                tmp.flush()
-                tmp.close()
-                return send_file(
-                    tmp.name,
-                    mimetype="text/markdown",
-                    as_attachment=True,
-                    download_name="API.md",
-                )
-            finally:
-                # файл удалится автоматически системой после рестарта/очистки temp;
-                # можно не удалять вручную, чтобы не гоняться за временем жизни ответа
-                pass
-
         @self.app.route("/drop_db", methods=["GET"])
+        @self.require_login
         def reset_db():
             try:
                 init_db(self.db_path)
@@ -410,7 +479,7 @@ class WebApp:
                 abort(500, description="Ошибка при переинициализации БД")
 
         @self.app.template_filter('fromisoformat')
-        def fromisoformat_filter(s: str) -> datetime or None:
+        def fromisoformat_filter(s: str) -> datetime | None:
             try:
                 return datetime.fromisoformat(s)
             except (ValueError, TypeError):
