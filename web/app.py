@@ -119,6 +119,16 @@ class WebApp:
             return 'ok'
 
         # --- login/logout ---
+        @self.app.route("/version", methods=["GET"])
+        def version():
+            """
+            Отдаёт версию приложения (TAG из переменной окружения).
+            Используется в контейнере и на препроде.
+            """
+            tag = os.getenv("TAG", "dev")
+            return jsonify({"version": tag})
+
+
 
         @self.app.route("/login", methods=["GET", "POST"])
         def login():
