@@ -12,6 +12,7 @@ else:
 
 # Получение значений из переменных окружения
 PORT = os.getenv("TLCR_FLASK_PORT", "7999")
+HOST = os.getenv("TLCR_FLASK_HOST", "127.0.0.1")
 WORKERS = os.getenv("GUNICORN_WORKERS", 2)
 TIMEOUT = os.getenv("GUNICORN_TIMEOUT", 120)
 LOG_PATH = os.path.abspath(os.getenv("TLCR_LOGPATH", "log"))
@@ -21,12 +22,13 @@ LOG_LEVEL = os.getenv("TLCR_LOG_LEVEL", "DEBUG")
 print(f"""
   >>>> Loading gunicorn config...
   !>>> Envment: 	{environment}
-  !>>> Port: 		{PORT}
+  !>>> Host: 		  {HOST}
+  !>>> Port: 		  {PORT}
   !>>> Logs dir: 	{LOG_PATH}
 """)
 
 # Настройки Gunicorn
-bind = f"127.0.0.1:{PORT}" if environment == 'dev' else f"0.0.0.0:{PORT}"
+bind = f"{HOST}:{PORT}"
 workers = int(WORKERS)
 worker_class = "sync"
 timeout = int(TIMEOUT)
