@@ -9,16 +9,26 @@ from lib.db_utils import (
     add_schedule, delete_schedule, get_schedule, get_schedules,
     init_db, init_log, update_schedule,
     add_chat, get_chats, delete_chat,
-    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy
+    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy,
+    update_ntfy_channel, get_ntfy_channel
 )
 from lib.utils import get_environment_name, load_env as load_utils_env
 
 
+WEB_LOG = None
+
+
 class WebApp:
     def __init__(self, env_file=None):
+        global WEB_LOG
         self.app = Flask(__name__, template_folder='../templates', static_folder='../static')
         self.setup_app()
-        self.log = init_log('web_app', LOGPATH, LOGLEVEL)
+
+        # Инициализируем логгер web_app только один раз
+        if WEB_LOG is None:
+            WEB_LOG = init_log('web_app', LOGPATH, LOGLEVEL)
+        self.log = WEB_LOG
+
         self.load_env(env_file)
         self.myVCron = VCron(timezone=self.timezone)
         self.setup_routes()
@@ -51,8 +61,17 @@ class WebApp:
 
         if not self.myVCron.valid(data["cron"]):
             abort(400, description=f'Invalid CRON expression: "{data["cron"]}"')
-        if not self.myVCron.is_valid_modifier(data.get("modifier", "")):
-            abort(400, description=f'Invalid modifier expression "{data.get("modifier", "")}"')
+
+        # Валидация модификатора через VCron.check_modifier
+        modifier = data.get("modifier", "") or ""
+        if modifier:
+            try:
+                now = datetime.now(tz=self.myVCron.timezone)
+                # check_modifier возвращает bool: False трактуем как неверный модификатор
+                if not self.myVCron.check_modifier(modifier, now):
+                    abort(400, description=f'Invalid modifier expression "{modifier}"')
+            except Exception:
+                abort(400, description=f'Invalid modifier expression "{modifier}"')
 
     def setup_routes(self):
         @self.app.route('/test')
@@ -320,6 +339,31 @@ class WebApp:
                 return render_template("error.html", text=f"Ошибка при удалении ntfy канала: {e}"), 500
             return redirect(url_for("ntfy_view"))
 
+        @self.app.route("/ntfy/edit/<int:channel_id>", methods=["GET", "POST"])
+        def edit_ntfy_channel_view(channel_id: int):
+            channel = get_ntfy_channel(channel_id, self.db_path)
+            if not channel:
+                abort(404, description="ntfy канал не найден")
+
+            if request.method == "GET":
+                return render_template("ntfy_edit.html", channel=channel)
+
+            # POST — сохраняем изменения
+            name = request.form.get("name")
+            url = request.form.get("url")
+            title = request.form.get("title", "")
+
+            if not name or not url:
+                abort(400, description="Название и URL обязательны")
+
+            try:
+                update_ntfy_channel(channel_id, name, url, title or None, self.db_path)
+            except Exception as e:
+                self.log.error(f"Ошибка при обновлении ntfy канала: {e}")
+                return render_template("error.html", text=f"Ошибка при обновлении ntfy канала: {e}"), 400
+
+            return redirect(url_for("ntfy_view"))
+
         @self.app.route('/export', methods=['GET'])
         def export_json():
             schedules = get_schedules(self.db_path)
@@ -334,6 +378,26 @@ class WebApp:
                 as_attachment=True,
                 download_name='schedules_export.json'
             )
+
+        @self.app.route("/api_doc", methods=["GET"])
+        def download_api_doc():
+            """Отдать API-док как файл, сгенерированный из API_DOC_TEXT."""
+            # пишем во временный файл, чтобы send_file отдал attachment
+            tmp = tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".md", encoding="utf-8")
+            try:
+                tmp.write(API_DOC_TEXT)
+                tmp.flush()
+                tmp.close()
+                return send_file(
+                    tmp.name,
+                    mimetype="text/markdown",
+                    as_attachment=True,
+                    download_name="API.md",
+                )
+            finally:
+                # файл удалится автоматически системой после рестарта/очистки temp;
+                # можно не удалять вручную, чтобы не гоняться за временем жизни ответа
+                pass
 
         @self.app.route("/drop_db", methods=["GET"])
         def reset_db():
@@ -357,10 +421,14 @@ class WebApp:
             return dt.strftime('%Y-%m-%d %H:%M %a') if dt else "##"
 
     def run(self):
+        debug = os.getenv('DEBUG', 'False').lower() == 'true'
+        port = int(os.getenv('TLCR_FLASK_PORT', 7999))
+        host = os.getenv('TLCR_FLASK_HOST', '127.0.0.1')
         self.app.run(
-            debug=os.getenv('DEBUG', 'False').lower() == 'true',
-            port=int(os.getenv('TLCR_FLASK_PORT', 7999)),
-            use_reloader=True
+            debug=debug,
+            host=host,
+            port=port,
+            use_reloader=debug  # перезагрузчик только в debug-режиме
         )
 
 
