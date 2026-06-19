@@ -75,13 +75,14 @@ def signal_handler(signum, frame):
 
 def get_message_from_json(message: str) -> str:
     """
-    Если сообщение имеет формат '#!/path/to/file.json',
+    Если сообщение имеет формат '#!/path/to/file.json' или '#!path/to/file.json',
     пытается загрузить JSON файл и найти сообщение для текущей даты.
     """
-    if not message.startswith('#!/'):
+    if not message.startswith('#!'):
         return message
 
     try:
+        # Получаем путь к файлу после #!
         json_path = message[2:].strip()
         if not os.path.isfile(json_path):
             log.error(f"Файл {json_path} не найден")
