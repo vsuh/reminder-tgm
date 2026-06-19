@@ -302,7 +302,7 @@ def backup_database(db_path=DB_PATH, backup_dir=BACKUP_DIR):
         with sqlite3.connect(db_path) as source:
             with sqlite3.connect(str(backup_file)) as backup:
                 source.backup(backup)
-                log.info(f"Создана резервная копия БД: {backup_file}")
+                log.info(f"Создана резервная копия БД ({db_path}): {backup_file}")
 
         # Удаление старых бэкапов, оставляем только 3 последних
         backup_files = sorted(
