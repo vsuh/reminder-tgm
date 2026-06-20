@@ -32,20 +32,39 @@ def init_log(name: str = None, log_path: str = ".", log_level: str = "INFO") -> 
 
     # Устанавливаем уровень для самого логгера
     log.setLevel(level)
+    log.setLevel(level)
+    environment = get_environment_name()
 
-    handler2file = RotatingFileHandler(pt(log_path).joinpath(f'{name}.log'), encoding="utf-8", maxBytes=50000, backupCount=3)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s@(%(module)s:%(lineno)d)- %(levelname)s - %(message)s'
+    )
+
+    if environment == "prod":
+        handler2file = RotatingFileHandler(
+            pt(log_path).joinpath(f'{name}.log'),
+            encoding="utf-8",
+            maxBytes=50000,
+            backupCount=3,
+        )
+    else:
+        handler2file = logging.FileHandler(
+            pt(log_path).joinpath(f'{name}.log'),
+            encoding="utf-8",
+        )
+
     handler2file.setLevel(level)
-    formatter = logging.Formatter('%(asctime)s - %(name)s@(%(module)s:%(lineno)d)- %(levelname)s - %(message)s')
     handler2file.setFormatter(formatter)
+    log.addHandler(handler2file)
 
     handler2con = logging.StreamHandler()
     handler2con.setLevel(level)
-    handler2con.setFormatter(formatter)  # Добавляем форматирование для консольного вывода
-
-    log.addHandler(handler2file)
+    handler2con.setFormatter(formatter)
     log.addHandler(handler2con)
 
-    log.info(f'Протоколирование уровня "{log_level}" с именем "{name}" установлено. Логфайлы в каталоге "{log_path}"')
+    log.info(
+        f'Протоколирование уровня "{log_level}" с именем "{name}" установлено. '
+        f'Логфайлы в каталоге "{log_path}"'
+    )
     return log
 
 def load_env(environment: str = "dev"):

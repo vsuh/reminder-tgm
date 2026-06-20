@@ -38,9 +38,7 @@ BACKUP_SCP_EVEN = os.getenv("TLCR_BACKUP_SCP_EVEN", "").strip()
 BACKUP_SSH_KEY_PATH = os.getenv("TLCR_BACKUP_SSH_KEY_PATH", "").strip()
 BACKUP_SSH_PORT_ODD = int(os.getenv("TLCR_BACKUP_SSH_PORT_ODD", "22"))
 BACKUP_SSH_PORT_EVEN = int(os.getenv("TLCR_BACKUP_SSH_PORT_EVEN", "22"))
-
-# ntfy-топик для аварийных уведомлений о сбое scp
-BACKUP_SCP_ERROR_NTFY_URL = "https://ntfy.sh/HELOR_tg_cron_notify_1956GH7y"
+BACKUP_SCP_ERROR_NTFY_URL = os.getenv("TLCR_ERROR_NTFY_URL", "https://ntfy.sh/HELOR_tg_cron_notify_1956GH7y")
 
 # Initialize logger
 log = init_log('rmndr', LOGPATH, LOGLEVEL)
@@ -82,7 +80,6 @@ def get_message_from_json(message: str) -> str:
         return message
 
     try:
-        # Получаем путь к файлу после #!
         json_path = message[2:].strip()
         if not os.path.isfile(json_path):
             log.error(f"Файл {json_path} не найден")
@@ -105,7 +102,7 @@ def get_message_from_json(message: str) -> str:
                 return item['text']
 
         log.warning(f"В файле {json_path} не найдено сообщение для даты {today}")
-        return message
+        return ""
 
     except json.JSONDecodeError as e:
         log.error(f"Ошибка при разборе JSON файла {json_path}: {e}")
@@ -141,6 +138,14 @@ def send_ntfy_message(url: str, message: str, title: str | None = None):
     Если title содержит не-ASCII символы, заголовок Title не отправляется.
     """
     headers = {"Content-Type": "text/plain; charset=utf-8"}
+
+    # Если url передан без схемы (например, 'HELOR_tg_cron_notify_...'), добавим https://ntfy.sh/
+    # как защиту от неверно сохранённых URL-ов.
+    if not url.startswith(("http://", "https://")):
+        log.warning(
+            "ntfy URL без схемы: %r, добавляем https://ntfy.sh/ префикс", url
+        )
+        url = f"https://ntfy.sh/{url}"
 
     if title:
         try:
@@ -302,7 +307,16 @@ def check_and_send(schedule, myVCron: VCron, timezone):
         # Один раз формируем итоговый текст (учитывая shebang)
         actual_message = get_message_from_json(message)
 
+        if not actual_message:
+            log.warning(
+                "Сообщение по расписанию %s не отправлено: "
+                "после обработки shebang/message текст пустой",
+                record_key,
+            )
+            return
+
         send_telegram_message(actual_message, chat_id)
+
         update_last_fired(record_key, DB_PATH)
         print(f"{now} уведомление по расписанию № {record_key}")
 
