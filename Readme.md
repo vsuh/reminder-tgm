@@ -6,7 +6,7 @@
 
 Этот проект представляет собой простое приложение для отправки напоминаний в Telegram на основе расписания `cron` и дополнительных модификаторов.  Приложение предоставляет веб-интерфейс и REST API для управления расписаниями. Проект может быть развернут в [docker контейнере](https://github.com/vsuh/cron-tg-docker.git)
 
-> После повышения версии проекта, запускается GA workflow обновляющий образ [docker.io/vsuh/cron-tg-docker](https://hub.docker.com/repository/docker/vsuh/cron-tg/general)
+> После повышения версии проекта, запускается GA workflow обновляющий образ [docker.io/vsuh/cron-tg](https://hub.docker.com/repository/docker/vsuh/cron-tg/general)
 
 Например:
 
