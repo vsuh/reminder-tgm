@@ -79,7 +79,7 @@ class WebApp:
                 now = datetime.now(tz=self.myVCron.timezone)
                 # check_modifier возвращает bool: False трактуем как неверный модификатор
                 if not self.myVCron.check_modifier(modifier, now):
-                    abort(400, description=f'Invalid modifier expression "{modifier}"')
+                    abort(400, description=f'Invalid modifier checking: "{modifier}"')
             except Exception:
                 abort(400, description=f'Invalid modifier expression "{modifier}"')
 
