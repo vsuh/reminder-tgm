@@ -70,18 +70,21 @@ class VCron:
         except ValueError:
             return False # Invalid date format
 
-        if rule.startswith(("w/", "d/")):  # Handle all three types
+        if rule.startswith(("w/", "d/", "m/")):  # Handle all three types
             interval = int(rule[2:])
             delta = relativedelta(now, start_datetime)
             days_since = self.days_since(now.date(), start_datetime.date(), )
 
+            """
             if rule.startswith("w/"):
                 weeks = int(days_since/7)
                 return (weeks % interval == 0) and (days_since%7 == 0)
             elif rule.startswith("d/"):
                 return days_since % interval == 0
-
-        return False
+            """
+            return True
+        else:
+            return False
 
     def days_since(self, today_date:datetime.date, base_date: datetime.date) -> int:
         delta = today_date - base_date
