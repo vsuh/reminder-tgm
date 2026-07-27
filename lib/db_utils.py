@@ -17,15 +17,16 @@ BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "static/db.bak")
 log = init_log('db_utils', LOGPATH, LOGLEVEL)
 
 
-def init_db(db_path=DB_PATH, drop_table=True):
+def init_db(db_path=DB_PATH, drop_table=True, force=False):
     """
     Инициализирует базу данных SQLite.  Выполняет инициализацию только один раз.
 
     Args:
         db_path (str): Путь к файлу базы данных.
         drop_table (bool): Флаг, указывающий на необходимость удаления существующей таблицы перед созданием новой.
+        force (bool): Принудительно выполнить инициализацию, даже если уже было.
     """
-    if hasattr(init_db, "_initialized") and init_db._initialized:  # Check if already initialized
+    if hasattr(init_db, "_initialized") and init_db._initialized and not force:  # Check if already initialized
         return
 
     try:

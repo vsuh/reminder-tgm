@@ -365,8 +365,14 @@ def main():
                 except Exception as e:
                     log.error(f"Ошибка при создании резервной копии: {e}")
 
-            # Чистим список активных процессов от завершённых
-            active_processes = [p for p in active_processes if p.is_alive()]
+            # Чистим список активных процессов от завершённых (основная чистка будет во время сна)
+            alive = []
+            for p in active_processes:
+                if not p.is_alive():
+                    p.join()
+                else:
+                    alive.append(p)
+            active_processes = alive
 
             if schedules := db_get_schedules(DB_PATH):
                 for schedule in schedules:
@@ -380,11 +386,8 @@ def main():
                     active_processes.append(p)
                     p.start()
 
-                # Ждём завершения с таймаутом, чтобы не зависнуть
-                for p in active_processes:
-                    p.join(timeout=10)
-                    if p.is_alive():
-                        log.warning(f"Процесс {p.pid} не завершился вовремя")
+                # Мы больше не блокируем главный поток вызовом join() здесь.
+                # Завершенные процессы будут очищаться в цикле ожидания ниже.
 
             if running:
                 CHECK_INTERVAL = CHECK_MINUTES * 60
@@ -392,6 +395,15 @@ def main():
                 for _ in range(CHECK_INTERVAL):
                     if not running:
                         break
+                        
+                    alive = []
+                    for p in active_processes:
+                        if not p.is_alive():
+                            p.join()
+                        else:
+                            alive.append(p)
+                    active_processes = alive
+
                     time.sleep(1)
 
         except Exception as e:

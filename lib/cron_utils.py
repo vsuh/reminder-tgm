@@ -28,32 +28,6 @@ class VCron:
         except ValueError:
             return False
 
-        if not modifier:
-            return True
-        pattern = r'^(?:(?P<date>\d{8})>?)?(?P<period>[wdm]\/\d+)$' # Added 'm' for month support
-
-        match = re.match(pattern, modifier)
-        if not match:
-            return False
-
-        period_part = match['period']
-
-        if date_part := match['date']:
-            try:
-                year = int(date_part[:4])
-                month = int(date_part[4:6])
-                day = int(date_part[6:])
-
-                # Проверка на корректность даты
-                if not (1900 <= year <= 9999 and 1 <= month <= 12 and 1 <= day <= 31):
-                    return False
-            except ValueError:
-                return False
-
-        # Проверка периода
-        period_match = re.match(r'[wdm]\/\d+$', period_part) # Added 'm' for month support
-        return bool(period_match)
-
     def check_modifier(self, modifier: str, now: datetime) -> bool:
         now = now.replace(tzinfo=self.timezone) # Ensure now has the correct timezone
         if not modifier:
@@ -75,13 +49,14 @@ class VCron:
             delta = relativedelta(now, start_datetime)
             days_since = self.days_since(now.date(), start_datetime.date(), )
 
-            """
             if rule.startswith("w/"):
                 weeks = int(days_since/7)
                 return (weeks % interval == 0) and (days_since%7 == 0)
             elif rule.startswith("d/"):
                 return days_since % interval == 0
-            """
+            elif rule.startswith("m/"):
+                months = delta.years * 12 + delta.months
+                return (months % interval == 0) and (now.day == start_datetime.day)
             return True
         else:
             return False

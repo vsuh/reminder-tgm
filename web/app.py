@@ -251,7 +251,11 @@ class WebApp:
             for data in list_data:
                 try:
                     self._validate_schedule_data(data)
-                    add_schedule(data["cron"], data["message"], data.get("modifier", ""), self.db_path)
+                    chat_id = data.get("chat_id") or self.app.config["def_chat_id"]
+                    if not chat_id:
+                        abort(400, description="Отсутствует chat_id и дефолтный чат не настроен")
+                    ntfy_id = data.get("ntfy_id")
+                    add_schedule(data["cron"], data["message"], data.get("modifier", ""), int(chat_id), self.db_path, ntfy_id=ntfy_id)
                 except ValueError as e:
                     abort(400, description=str(e))
 
@@ -263,7 +267,11 @@ class WebApp:
             data = request.get_json()
             try:
                 self._validate_schedule_data(data)
-                add_schedule(data["cron"], data["message"], data.get("modifier", ""), self.db_path)
+                chat_id = data.get("chat_id") or self.app.config["def_chat_id"]
+                if not chat_id:
+                    abort(400, description="Отсутствует chat_id и дефолтный чат не настроен")
+                ntfy_id = data.get("ntfy_id")
+                add_schedule(data["cron"], data["message"], data.get("modifier", ""), int(chat_id), self.db_path, ntfy_id=ntfy_id)
                 return jsonify({"status": "success"}), 201
             except ValueError as e:
                 abort(400, description=str(e))
@@ -481,7 +489,7 @@ class WebApp:
         @self.require_login
         def reset_db():
             try:
-                init_db(self.db_path)
+                init_db(self.db_path, drop_table=True, force=True)
                 migrate_add_ntfy(self.db_path)
                 return redirect(url_for("schedules_view"))
             except Exception as e:
