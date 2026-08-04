@@ -72,16 +72,11 @@ class WebApp:
         if not self.myVCron.valid(data["cron"]):
             abort(400, description=f'Invalid CRON expression: "{data["cron"]}"')
 
-        # Валидация модификатора через VCron.check_modifier
+        # Валидация синтаксиса модификатора
         modifier = data.get("modifier", "") or ""
         if modifier:
-            try:
-                now = datetime.now(tz=self.myVCron.timezone)
-                # check_modifier возвращает bool: False трактуем как неверный модификатор
-                if not self.myVCron.check_modifier(modifier, now):
-                    abort(400, description=f'Invalid modifier checking: "{modifier}"')
-            except Exception:
-                abort(400, description=f'Invalid modifier expression "{modifier}"')
+            if not self.myVCron.valid_modifier(modifier):
+                abort(400, description=f'Invalid modifier expression: "{modifier}"')
 
     # --- Аутентификация (через сессию) ---
 

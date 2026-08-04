@@ -3,6 +3,15 @@ from datetime import datetime
 import pytz
 from dateutil.relativedelta import relativedelta
 import re
+import os
+from .utils import init_log, get_environment_name, load_env
+
+environment = get_environment_name()
+load_env(environment)
+
+LOGPATH = os.getenv("TLCR_LOGPATH", ".")
+LOGLEVEL = os.getenv("TLCR_LOG_LEVEL", 'INFO').upper()
+log = init_log('cron_utils', LOGPATH, LOGLEVEL)
 
 class VCron:
     """
@@ -28,37 +37,73 @@ class VCron:
         except ValueError:
             return False
 
+    def valid_modifier(self, modifier: str) -> bool:
+        if not modifier:
+            return True
+
+        parts = modifier.split(">")
+        if len(parts) > 2:
+            return False
+            
+        start_date_str = parts[0] if len(parts) == 2 else "20010101"
+        rule = parts[-1]
+
+        try:
+            datetime.strptime(start_date_str, "%Y%m%d")
+        except ValueError:
+            return False
+
+        if rule.startswith(("w/", "d/", "m/")):
+            try:
+                interval = int(rule[2:])
+                return True
+            except ValueError:
+                return False
+        return False
+
     def check_modifier(self, modifier: str, now: datetime) -> bool:
+        log.debug(f"check_modifier started with modifier='{modifier}', now={now}")
         now = now.replace(tzinfo=self.timezone) # Ensure now has the correct timezone
         if not modifier:
+            log.debug("Modifier is empty, returning True")
             return True
 
         parts = modifier.split(">")
         start_date_str = parts[0] if len(parts) == 2 else "20010101"
         rule = parts[-1]
+        log.debug(f"start_date_str='{start_date_str}', rule='{rule}'")
 
         try:
             start_datetime = self.timezone.localize(datetime.combine(datetime.strptime(start_date_str, "%Y%m%d").date(), datetime.min.time()))
         except OverflowError:
             start_datetime = self.timezone.localize(datetime(2001, 1, 1)) # Fallback to a safe date
         except ValueError:
+            log.debug("Invalid start date format, returning False")
             return False # Invalid date format
 
         if rule.startswith(("w/", "d/", "m/")):  # Handle all three types
             interval = int(rule[2:])
             delta = relativedelta(now, start_datetime)
             days_since = self.days_since(now.date(), start_datetime.date(), )
+            log.debug(f"Interval={interval}, delta={delta}, days_since={days_since}")
 
             if rule.startswith("w/"):
                 weeks = int(days_since/7)
-                return (weeks % interval == 0) and (days_since%7 == 0)
+                res = (weeks % interval == 0) and (days_since%7 == 0)
+                log.debug(f"w/ rule check result: {res}")
+                return res
             elif rule.startswith("d/"):
-                return days_since % interval == 0
+                res = days_since % interval == 0
+                log.debug(f"d/ rule check result: {res}")
+                return res
             elif rule.startswith("m/"):
                 months = delta.years * 12 + delta.months
-                return (months % interval == 0) and (now.day == start_datetime.day)
+                res = (months % interval == 0) and (now.day == start_datetime.day)
+                log.debug(f"m/ rule check result: {res}")
+                return res
             return True
         else:
+            log.debug("Unknown rule format, returning False")
             return False
 
     def days_since(self, today_date:datetime.date, base_date: datetime.date) -> int:
