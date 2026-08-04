@@ -180,4 +180,6 @@ cython_debug/
 **/*.db-*
 .ai_prompt
 db/*.json
+
 portainer_redeploy.sh
+.vscode/
