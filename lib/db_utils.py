@@ -74,6 +74,8 @@ def run_initialization(conn, drop_table, db_path):
                         last_fired TIMESTAMP,
                         chat_id INTEGER NOT NULL,
                         ntfy_id INTEGER,
+                        run_at TEXT,
+                        attempts INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY (chat_id) REFERENCES chats(id)
                     )''',
         cursor,
@@ -126,11 +128,44 @@ def migrate_add_ntfy(db_path=DB_PATH):
         log.error("Ошибка миграции ntfy: %s", str(e))
 
 
+def migrate_add_once(db_path=DB_PATH):
+    """Добавляет столбцы run_at и attempts (однократные напоминания), если их нет."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(schedules)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if not columns:
+                return
+            if "run_at" not in columns:
+                cursor.execute("ALTER TABLE schedules ADD COLUMN run_at TEXT")
+            if "attempts" not in columns:
+                cursor.execute("ALTER TABLE schedules ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+    except sqlite3.Error as e:
+        log.error("Ошибка миграции run_at/attempts: %s", str(e))
+
+
+def increment_attempts(schedule_id, db_path) -> int:
+    """Увеличивает счётчик неудачных отправок и возвращает новое значение."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE schedules SET attempts = attempts + 1 WHERE id = ?", (schedule_id,))
+            cursor.execute("SELECT attempts FROM schedules WHERE id = ?", (schedule_id,))
+            row = cursor.fetchone()
+            conn.commit()
+            return row[0] if row else 0
+    except sqlite3.Error as e:
+        log.error("Ошибка при обновлении attempts: %s", str(e))
+        return 0
+
+
 def get_schedules(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id FROM schedules")
+            cursor.execute("SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id, run_at, attempts FROM schedules")
             return [
                 {
                     "id": row[0],
@@ -140,6 +175,8 @@ def get_schedules(db_path) -> list:
                     "last_fired": row[4],
                     "chat_id": row[5],
                     "ntfy_id": row[6],
+                    "run_at": row[7],
+                    "attempts": row[8] or 0,
                 }
                 for row in cursor.fetchall()
             ]
@@ -153,7 +190,7 @@ def get_schedule(schedule_id, db_path) -> dict | None:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id "
+                "SELECT id, cron, message, modifier, last_fired, chat_id, ntfy_id, run_at, attempts "
                 "FROM schedules WHERE id = ?",
                 (schedule_id,),
             )
@@ -167,6 +204,8 @@ def get_schedule(schedule_id, db_path) -> dict | None:
                     "last_fired": row[4],
                     "chat_id": row[5],
                     "ntfy_id": row[6],
+                    "run_at": row[7],
+                    "attempts": row[8] or 0,
                 }
             return None
     except sqlite3.Error as e:
@@ -174,7 +213,7 @@ def get_schedule(schedule_id, db_path) -> dict | None:
         return None
 
 
-def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
+def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None, run_at=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
@@ -182,9 +221,9 @@ def add_schedule(cron, message, modifier, chat_id, db_path, ntfy_id=None):
             if cursor.fetchone()[0] == 0:
                 raise MyError("Нельзя добавить расписание: таблица chats пуста.")
             cursor.execute(
-                "INSERT INTO schedules (cron, message, modifier, chat_id, ntfy_id) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (cron, message, modifier, chat_id, ntfy_id or None),
+                "INSERT INTO schedules (cron, message, modifier, chat_id, ntfy_id, run_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (cron, message, modifier, chat_id, ntfy_id or None, run_at),
             )
             conn.commit()
     except sqlite3.Error as e:
@@ -267,13 +306,13 @@ def update_last_fired(schedule_id, db_path):
         log.error("Ошибка при обновлении last_fired: %s", str(e))
 
 
-def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path, ntfy_id=None):
+def update_schedule(schedule_id, cron, message, modifier, chat_id, db_path, ntfy_id=None, run_at=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE schedules SET cron=?, message=?, modifier=?, chat_id=?, ntfy_id=? WHERE id=?",
-                (cron, message, modifier, chat_id, ntfy_id or None, schedule_id),
+                "UPDATE schedules SET cron=?, message=?, modifier=?, chat_id=?, ntfy_id=?, run_at=?, attempts=0 WHERE id=?",
+                (cron, message, modifier, chat_id, ntfy_id or None, run_at, schedule_id),
             )
             conn.commit()
         return None

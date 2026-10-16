@@ -12,7 +12,13 @@
     <form method="post">
         <div class="form-group">
             <label for="cron">CRON выражение:</label>
-            <input type="text" class="form-control" id="cron" name="cron" required value="{{ schedule.cron }}">
+            <input type="text" class="form-control" id="cron" name="cron" value="{{ '' if schedule.run_at else schedule.cron }}">
+        </div>
+
+        <div class="form-group">
+            <label for="when">Однократно (вместо CRON):</label>
+            <input type="text" class="form-control" id="when" name="when" value="{{ schedule.run_at or '' }}"
+                   placeholder="2026-10-20 14:30 | 14:30 | 2026-10-20">
         </div>
 
         <div class="form-group">

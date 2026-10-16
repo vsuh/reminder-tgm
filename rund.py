@@ -16,6 +16,7 @@ from lib.cron_utils import VCron
 from lib.db_utils import (
     update_last_fired, get_chats, get_schedules as db_get_schedules,
     get_ntfy_channel, backup_database,
+    delete_schedule, increment_attempts, migrate_add_once,
     DB_PATH, LOGPATH, LOGLEVEL
 )
 from lib.utils import get_environment_name, init_log, load_env
@@ -29,6 +30,7 @@ TELEGRAM_TOKEN = os.getenv("TLCR_TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TLCR_TELEGRAM_CHAT_ID")
 TIMEZONE = os.getenv("TLCR_TZ", "UTC")
 CHECK_MINUTES = int(os.getenv("TLCR_CHECK_MINUTES", "60"))
+ONCE_MAX_ATTEMPTS = int(os.getenv("TLCR_ONCE_MAX_ATTEMPTS", "5"))
 BACKUP_HOURS = int(os.getenv("TLCR_BACKUP_INTERVAL", "24"))
 BACKUP_DIR = os.getenv("TLCR_BACKUP_PATH", "static/db.bak")
 
@@ -112,7 +114,7 @@ def get_message_from_json(message: str) -> str:
         return message
 
 
-def send_telegram_message(message: str, chat_id: int):
+def send_telegram_message(message: str, chat_id: int) -> bool:
     """
     Отправляет сообщение в Telegram.
     Принимает уже обработанный текст (без shebang).
@@ -126,11 +128,13 @@ def send_telegram_message(message: str, chat_id: int):
         response = requests.post(url, data=data)
         response.raise_for_status()
         log.debug(f"Сообщение успешно отправлено chat_id={chat_id}: {formatted_message}")
+        return True
     except requests.exceptions.RequestException as e:
         log.error("Ошибка при отправке сообщения: %s, ошибка: %s", formatted_message, e)
+        return False
 
 
-def send_ntfy_message(url: str, message: str, title: str | None = None):
+def send_ntfy_message(url: str, message: str, title: str | None = None) -> bool:
     """
     Отправляет уведомление в ntfy.sh топик.
 
@@ -161,8 +165,10 @@ def send_ntfy_message(url: str, message: str, title: str | None = None):
         response = requests.post(url, data=message.encode("utf-8"), headers=headers)
         response.raise_for_status()
         log.debug(f"ntfy уведомление отправлено на {url}")
+        return True
     except requests.exceptions.RequestException as e:
         log.error("Ошибка при отправке ntfy на %s: %s", url, e)
+        return False
 
 
 def replicate_backup_via_scp(backup_file_path: str):
@@ -268,6 +274,61 @@ def calculate_age(birth_date: datetime, today: datetime) -> int:
     return years
 
 
+def process_once(schedule, myVCron: VCron, now):
+    """
+    Однократное напоминание: отправляет, когда наступил час run_at, и удаляет запись.
+    Успех = доставка в Telegram (дубль в ntfy — как у обычных расписаний, ошибка только в лог).
+    Ошибка: до ONCE_MAX_ATTEMPTS попыток (по одной за цикл). Об ошибке (на 1-й и последней
+    попытке) один раз уведомляем через оставшийся канал (ntfy); после последней — удаляем.
+    """
+    record_key = schedule["id"]
+    if not myVCron.is_once_due(schedule["run_at"], now):
+        log.debug("Однократное %s ещё не наступило (%s)", record_key, schedule["run_at"])
+        return
+
+    message = schedule["message"]
+    ntfy = None
+    if schedule.get("ntfy_id"):
+        ntfy = get_ntfy_channel(schedule["ntfy_id"], DB_PATH)
+        if not ntfy:
+            log.warning("ntfy канал id=%s не найден для schedule_id=%s", schedule["ntfy_id"], record_key)
+
+    chat_id = get_chat_id(schedule["chat_id"])
+    actual_message = get_message_from_json(message)
+    reason = None
+    if chat_id is None:
+        reason = "не найден chat_id"
+    elif not actual_message:
+        reason = "пустой текст сообщения"
+    elif not send_telegram_message(actual_message, chat_id):
+        reason = "ошибка отправки в Telegram"
+
+    if reason is None:
+        if ntfy and not send_ntfy_message(ntfy["url"], actual_message, ntfy.get("title")):
+            log.warning("Однократное %s: ntfy не доставлен (повтор не выполняется)", record_key)
+        delete_schedule(record_key, DB_PATH)
+        log.info("Однократное напоминание %s отправлено и удалено", record_key)
+        return
+
+    attempts = increment_attempts(record_key, DB_PATH)
+    log.error(
+        "Однократное напоминание %s не отправлено (%s), попытка %s/%s",
+        record_key, reason, attempts, ONCE_MAX_ATTEMPTS,
+    )
+    final = attempts >= ONCE_MAX_ATTEMPTS
+    if ntfy and (attempts == 1 or final):
+        notice = (
+            f"Напоминание #{record_key} не доставлено в Telegram ({reason}), "
+            f"попытка {attempts}/{ONCE_MAX_ATTEMPTS}"
+            + (" — запись удалена." if final else ".")
+            + f"\nТекст: {str(message)[:200]}"
+        )
+        send_ntfy_message(ntfy["url"], notice, ntfy.get("title"))
+    if final:
+        delete_schedule(record_key, DB_PATH)
+        log.error("Однократное напоминание %s удалено после %s неудачных попыток", record_key, attempts)
+
+
 def check_and_send(schedule, myVCron: VCron, timezone):
     """
     Проверяет расписание и отправляет уведомление, если необходимо.
@@ -278,6 +339,10 @@ def check_and_send(schedule, myVCron: VCron, timezone):
     message = schedule["message"]
     modifier = schedule.get("modifier", "")
     record_key = schedule["id"]
+
+    if schedule.get("run_at"):
+        process_once(schedule, myVCron, now)
+        return
 
     # Если сообщение про ДР и в modifier лежит дата, добавляем возраст
     if isinstance(message, str) and message.startswith("ДР") and modifier:
@@ -344,6 +409,7 @@ def main():
 
     timezone = pytz.timezone(TIMEZONE)
     myVCron_local = VCron(TIMEZONE)
+    migrate_add_once(DB_PATH)
     last_backup_time = time.time()
 
     log.info("Демон напоминаний запущен. Для завершения нажмите Ctrl-C")

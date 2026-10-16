@@ -6,13 +6,13 @@ from flask import (
     Flask, request, jsonify, render_template,
     redirect, url_for, abort, send_file, session, flash
 )
-from lib.cron_utils import VCron
+from lib.cron_utils import VCron, ONCE_CRON
 from lib.db_utils import (
     DB_PATH, LOGLEVEL, LOGPATH,
     add_schedule, delete_schedule, get_schedule, get_schedules,
     init_db, init_log, update_schedule,
     add_chat, get_chats, delete_chat,
-    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy,
+    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy, migrate_add_once,
     update_ntfy_channel, get_ntfy_channel
 )
 from lib.utils import get_environment_name, load_env as load_utils_env
@@ -37,6 +37,7 @@ class WebApp:
         self.setup_routes()
         init_db(drop_table=False)
         migrate_add_ntfy(self.db_path)
+        migrate_add_once(self.db_path)
 
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
@@ -66,8 +67,20 @@ class WebApp:
         return years
 
     def _validate_schedule_data(self, data):
-        if not data or "cron" not in data or "message" not in data:
+        if not data or "message" not in data or ("cron" not in data and not data.get("when")):
             abort(400, description="Неверный формат данных")
+
+        # Однократное напоминание: поле "when" заменяет cron/modifier
+        when = (data.get("when") or "").strip()
+        if when:
+            try:
+                data["run_at"] = self.myVCron.parse_once(when, datetime.now(tz=self.myVCron.timezone))
+            except ValueError as e:
+                abort(400, description=str(e))
+            data["cron"] = ONCE_CRON
+            data["modifier"] = ""
+            return data
+        data["run_at"] = None
 
         if not self.myVCron.valid(data["cron"]):
             abort(400, description=f'Invalid CRON expression: "{data["cron"]}"')
@@ -77,6 +90,7 @@ class WebApp:
         if modifier:
             if not self.myVCron.valid_modifier(modifier):
                 abort(400, description=f'Invalid modifier expression: "{modifier}"')
+        return data
 
     # --- Аутентификация (через сессию) ---
 
@@ -162,16 +176,18 @@ class WebApp:
                 cron = request.form.get("cron")
                 message = request.form.get("message")
                 modifier = request.form.get("modifier", "")
-                if not cron or not message:
+                when = request.form.get("when", "").strip()
+                if (not cron and not when) or not message:
                     abort(400, description="Все поля должны быть заполнены")
                 try:
-                    self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message})
+                    d = self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message, "when": when})
+                    cron, modifier = d["cron"], d["modifier"]
                     chat_id = request.form.get("chat_id") or self.app.config["def_chat_id"]
                     if not chat_id:
                         abort(400, "Не выбран чат для напоминания. Сначала добавьте чат и выберите его.")
                     ntfy_id_str = request.form.get("ntfy_id", "")
                     ntfy_id = int(ntfy_id_str) if ntfy_id_str else None
-                    add_schedule(cron, message, modifier, int(chat_id), self.db_path, ntfy_id=ntfy_id)
+                    add_schedule(cron, message, modifier, int(chat_id), self.db_path, ntfy_id=ntfy_id, run_at=d.get("run_at"))
                 except ValueError as e:
                     return render_template("error.html", text=str(e)), 400
                 return redirect(url_for("schedules_view"))
@@ -182,7 +198,10 @@ class WebApp:
             chat_map = {chat['id']: chat['name'] for chat in chats}
 
             for item in schedules:
-                next_match = self.myVCron.get_next_match(item['cron'], item['modifier'])
+                if item.get('run_at'):
+                    next_match = self.myVCron.once_datetime(item['run_at'])
+                else:
+                    next_match = self.myVCron.get_next_match(item['cron'], item['modifier'])
                 item['next'] = next_match.isoformat() if next_match else None
                 item['chat_name'] = chat_map.get(item['chat_id'])
 
@@ -287,7 +306,7 @@ class WebApp:
         @self.require_login
         def edit_schedule(schedule_id: int):
             data = request.get_json()
-            if not data or "cron" not in data or "message" not in data or "chat_id" not in data:
+            if not data or ("cron" not in data and not data.get("when")) or "message" not in data or "chat_id" not in data:
                 abort(400, description="Неверный формат данных")
 
             try:
@@ -298,7 +317,8 @@ class WebApp:
                     data["message"],
                     data.get("modifier", ""),
                     int(data["chat_id"]),
-                    self.db_path
+                    self.db_path,
+                    run_at=data.get("run_at"),
                 )
                 return jsonify({"status": "success"}), 200
             except ValueError as e:
@@ -327,14 +347,15 @@ class WebApp:
             ntfy_id_str = request.form.get("ntfy_id", "")
             ntfy_id = int(ntfy_id_str) if ntfy_id_str else None
 
-            if not cron or not message or not chat_id:
+            when = request.form.get("when", "").strip()
+            if (not cron and not when) or not message or not chat_id:
                 abort(400, description="Все поля должны быть заполнены")
 
             try:
-                self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message})
+                d = self._validate_schedule_data({"cron": cron, "modifier": modifier, "message": message, "when": when})
                 update_schedule(
-                    schedule_id, cron, message, modifier,
-                    int(chat_id), self.db_path, ntfy_id=ntfy_id
+                    schedule_id, d["cron"], message, d["modifier"],
+                    int(chat_id), self.db_path, ntfy_id=ntfy_id, run_at=d.get("run_at")
                 )
             except ValueError as e:
                 return render_template("error.html", text=str(e)), 400
@@ -354,6 +375,9 @@ class WebApp:
             current_time = datetime.now(tz=self.myVCron.timezone)
 
             rows = []
+            if schedule.get('run_at'):
+                rows.append({"dt": self.myVCron.once_datetime(schedule['run_at']), "text": message})
+                return render_template("list.html", rows=rows, schedule=schedule)
             birth_date = None
             is_birthday = isinstance(message, str) and message.startswith("ДР") and modifier
 
@@ -486,6 +510,7 @@ class WebApp:
             try:
                 init_db(self.db_path, drop_table=True, force=True)
                 migrate_add_ntfy(self.db_path)
+                migrate_add_once(self.db_path)
                 return redirect(url_for("schedules_view"))
             except Exception as e:
                 self.log.error("Ошибка при переинициализации БД: %s", str(e))
