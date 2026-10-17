@@ -93,6 +93,28 @@ class WebApp:
                 abort(400, description=f'Invalid modifier expression: "{modifier}"')
         return data
 
+    def _resolve_chat_id(self, raw):
+        """
+        Возвращает id записи в таблице chats (на неё ссылается schedules.chat_id).
+        raw — id записи из запроса; если пусто — берётся чат по умолчанию:
+        запись chats без топика, у которой Telegram chat_id = TLCR_TELEGRAM_CHAT_ID.
+        """
+        chats = get_chats(self.db_path)
+        if raw not in (None, ""):
+            try:
+                chat_row_id = int(raw)
+            except (TypeError, ValueError):
+                abort(400, description="chat_id должен быть числом")
+            if not any(c["id"] == chat_row_id for c in chats):
+                abort(400, description=f"Чат с id={chat_row_id} не найден в таблице chats")
+            return chat_row_id
+        default_tg_id = self.app.config["def_chat_id"]
+        if default_tg_id:
+            for c in chats:
+                if str(c["chat_id"]) == str(default_tg_id) and not c.get("thread_id"):
+                    return c["id"]
+        abort(400, description="Не указан chat_id, а чат по умолчанию (TLCR_TELEGRAM_CHAT_ID) не добавлен на странице «Чаты»")
+
     # --- Аутентификация (через сессию) ---
 
     def _check_auth(self, username: str | None, password: str | None) -> bool:
@@ -266,11 +288,10 @@ class WebApp:
             for data in list_data:
                 try:
                     self._validate_schedule_data(data)
-                    chat_id = data.get("chat_id") or self.app.config["def_chat_id"]
-                    if not chat_id:
-                        abort(400, description="Отсутствует chat_id и дефолтный чат не настроен")
+                    chat_id = self._resolve_chat_id(data.get("chat_id"))
                     ntfy_id = data.get("ntfy_id")
-                    add_schedule(data["cron"], data["message"], data.get("modifier", ""), int(chat_id), self.db_path, ntfy_id=ntfy_id)
+                    add_schedule(data["cron"], data["message"], data.get("modifier", ""), chat_id, self.db_path,
+                                 ntfy_id=ntfy_id, run_at=data.get("run_at"))
                 except ValueError as e:
                     abort(400, description=str(e))
 
@@ -282,11 +303,10 @@ class WebApp:
             data = request.get_json()
             try:
                 self._validate_schedule_data(data)
-                chat_id = data.get("chat_id") or self.app.config["def_chat_id"]
-                if not chat_id:
-                    abort(400, description="Отсутствует chat_id и дефолтный чат не настроен")
+                chat_id = self._resolve_chat_id(data.get("chat_id"))
                 ntfy_id = data.get("ntfy_id")
-                add_schedule(data["cron"], data["message"], data.get("modifier", ""), int(chat_id), self.db_path, ntfy_id=ntfy_id)
+                add_schedule(data["cron"], data["message"], data.get("modifier", ""), chat_id, self.db_path,
+                             ntfy_id=ntfy_id, run_at=data.get("run_at"))
                 return jsonify({"status": "success"}), 201
             except ValueError as e:
                 abort(400, description=str(e))
