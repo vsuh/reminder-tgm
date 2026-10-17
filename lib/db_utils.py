@@ -85,7 +85,10 @@ def run_initialization(conn, drop_table, db_path):
         f'''{"" if drop_table else "IF NOT EXISTS"}  chats (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL UNIQUE,
-                        chat_id INTEGER NOT NULL UNIQUE
+                        chat_id INTEGER NOT NULL,
+                        topic TEXT,
+                        thread_id INTEGER NOT NULL DEFAULT 0,
+                        UNIQUE (chat_id, thread_id)
                     )''',
         cursor,
         conn,
@@ -251,24 +254,65 @@ def delete_schedule(schedule_id, db_path):
         log.error("Ошибка при удалении расписания: %s", str(e))
 
 
+def migrate_add_topics(db_path=DB_PATH):
+    """
+    Топики групп: добавляет в chats колонки topic и thread_id (0 = без топика) и меняет
+    UNIQUE(chat_id) на UNIQUE(chat_id, thread_id). SQLite не умеет снимать UNIQUE через ALTER,
+    поэтому таблица пересобирается с сохранением id (расписания ссылаются на chats.id).
+    Перед пересборкой делается копия БД <db>.before-topics.
+    """
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(chats)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if not columns or "thread_id" in columns:
+                return
+            with sqlite3.connect(f"{db_path}.before-topics") as dst:
+                conn.backup(dst)
+            cursor.execute("BEGIN")
+            cursor.execute(
+                "CREATE TABLE chats_new ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "name TEXT NOT NULL UNIQUE, "
+                "chat_id INTEGER NOT NULL, "
+                "topic TEXT, "
+                "thread_id INTEGER NOT NULL DEFAULT 0, "
+                "UNIQUE (chat_id, thread_id))"
+            )
+            cursor.execute("INSERT INTO chats_new (id, name, chat_id) SELECT id, name, chat_id FROM chats")
+            cursor.execute("DROP TABLE chats")
+            cursor.execute("ALTER TABLE chats_new RENAME TO chats")
+            conn.commit()
+            log.info("Миграция chats: добавлены topic, thread_id")
+    except sqlite3.Error as e:
+        log.error("Ошибка миграции chats (topic/thread_id): %s", str(e))
+
+
 def get_chats(db_path) -> list:
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, chat_id FROM chats")
-            return [{"id": row[0], "name": row[1], "chat_id": row[2]} for row in cursor.fetchall()]
+            cursor.execute("SELECT id, name, chat_id, topic, thread_id FROM chats")
+            return [
+                {"id": row[0], "name": row[1], "chat_id": row[2], "topic": row[3], "thread_id": row[4] or None}
+                for row in cursor.fetchall()
+            ]
     except sqlite3.Error as e:
         log.error("Ошибка при получении чатов: %s", str(e))
         return []
 
 
-def add_chat(name, chat_id, db_path):
+def add_chat(name, chat_id, db_path, topic=None, thread_id=None):
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO chats (name, chat_id) VALUES (?, ?)", (name, chat_id))
+            cursor.execute(
+                "INSERT INTO chats (name, chat_id, topic, thread_id) VALUES (?, ?, ?, ?)",
+                (name, chat_id, topic or None, thread_id or 0),
+            )
             conn.commit()
-            log.info("Добавлен новый чат: %s, %s", name, chat_id)
+            log.info("Добавлен новый чат: %s, %s, топик=%s", name, chat_id, thread_id or "-")
     except sqlite3.Error as e:
         log.error("Ошибка при добавлении чата: %s", str(e))
 

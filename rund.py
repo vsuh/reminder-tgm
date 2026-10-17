@@ -16,7 +16,7 @@ from lib.cron_utils import VCron
 from lib.db_utils import (
     update_last_fired, get_chats, get_schedules as db_get_schedules,
     get_ntfy_channel, backup_database,
-    delete_schedule, increment_attempts, migrate_add_once,
+    delete_schedule, increment_attempts, migrate_add_once, migrate_add_topics,
     DB_PATH, LOGPATH, LOGLEVEL
 )
 from lib.utils import get_environment_name, init_log, load_env
@@ -114,7 +114,7 @@ def get_message_from_json(message: str) -> str:
         return message
 
 
-def send_telegram_message(message: str, chat_id: int) -> bool:
+def send_telegram_message(message: str, chat_id: int, thread_id: int | None = None) -> bool:
     """
     Отправляет сообщение в Telegram.
     Принимает уже обработанный текст (без shebang).
@@ -124,6 +124,8 @@ def send_telegram_message(message: str, chat_id: int) -> bool:
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": formatted_message}
+    if thread_id:
+        data["message_thread_id"] = thread_id  # топик группы
     try:
         response = requests.post(url, data=data)
         response.raise_for_status()
@@ -252,6 +254,14 @@ def replicate_backup_via_scp(backup_file_path: str):
         send_ntfy_message(BACKUP_SCP_ERROR_NTFY_URL, msg, title="Backup SCP ERROR")
 
 
+def get_chat_target(chat_id_from_schedule):
+    """Возвращает (telegram chat_id, thread_id|None) по id записи чата, либо None."""
+    for chat in get_chats(DB_PATH):
+        if chat['id'] == chat_id_from_schedule:
+            return chat['chat_id'], chat.get('thread_id')
+    return None
+
+
 def get_chat_id(chat_id_from_schedule):
     chats = get_chats(DB_PATH)
     return next(
@@ -293,14 +303,15 @@ def process_once(schedule, myVCron: VCron, now):
         if not ntfy:
             log.warning("ntfy канал id=%s не найден для schedule_id=%s", schedule["ntfy_id"], record_key)
 
-    chat_id = get_chat_id(schedule["chat_id"])
+    target = get_chat_target(schedule["chat_id"])
+    chat_id, thread_id = target if target else (None, None)
     actual_message = get_message_from_json(message)
     reason = None
     if chat_id is None:
         reason = "не найден chat_id"
     elif not actual_message:
         reason = "пустой текст сообщения"
-    elif not send_telegram_message(actual_message, chat_id):
+    elif not send_telegram_message(actual_message, chat_id, thread_id):
         reason = "ошибка отправки в Telegram"
 
     if reason is None:
@@ -364,10 +375,11 @@ def check_and_send(schedule, myVCron: VCron, timezone):
     if myVCron.check_cron(cron_expr, now) and myVCron.check_modifier(modifier, now):
         log.info("Телеграфирую: %s", message)
 
-        chat_id = get_chat_id(schedule["chat_id"])
-        if chat_id is None:
+        target = get_chat_target(schedule["chat_id"])
+        if target is None:
             log.error(f"Не найден chat_id для schedule_id={record_key}")
             return
+        chat_id, thread_id = target
 
         # Один раз формируем итоговый текст (учитывая shebang)
         actual_message = get_message_from_json(message)
@@ -380,7 +392,7 @@ def check_and_send(schedule, myVCron: VCron, timezone):
             )
             return
 
-        send_telegram_message(actual_message, chat_id)
+        send_telegram_message(actual_message, chat_id, thread_id)
 
         update_last_fired(record_key, DB_PATH)
         print(f"{now} уведомление по расписанию № {record_key}")
@@ -410,6 +422,7 @@ def main():
     timezone = pytz.timezone(TIMEZONE)
     myVCron_local = VCron(TIMEZONE)
     migrate_add_once(DB_PATH)
+    migrate_add_topics(DB_PATH)
     last_backup_time = time.time()
 
     log.info("Демон напоминаний запущен. Для завершения нажмите Ctrl-C")

@@ -12,10 +12,10 @@ from lib.db_utils import (
     add_schedule, delete_schedule, get_schedule, get_schedules,
     init_db, init_log, update_schedule,
     add_chat, get_chats, delete_chat,
-    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy, migrate_add_once,
+    add_ntfy_channel, get_ntfy_channels, delete_ntfy_channel, migrate_add_ntfy, migrate_add_once, migrate_add_topics,
     update_ntfy_channel, get_ntfy_channel
 )
-from lib.utils import get_environment_name, load_env as load_utils_env
+from lib.utils import get_environment_name, load_env as load_utils_env, parse_thread_id
 
 
 WEB_LOG = None
@@ -38,6 +38,7 @@ class WebApp:
         init_db(drop_table=False)
         migrate_add_ntfy(self.db_path)
         migrate_add_once(self.db_path)
+        migrate_add_topics(self.db_path)
 
     def setup_app(self):
         self.app.config["def_chat_id"] = os.getenv("TLCR_TELEGRAM_CHAT_ID")
@@ -412,11 +413,18 @@ class WebApp:
             if request.method == "POST":
                 name = request.form.get("name")
                 chat_id_str = request.form.get("chat_id")
+                topic = (request.form.get("topic") or "").strip()
                 if not name or not chat_id_str:
                     abort(400, description="Все поля должны быть заполнены")
                 try:
                     chat_id = int(chat_id_str)
-                    add_chat(name, chat_id, self.db_path)
+                    thread_id = parse_thread_id(request.form.get("thread"))
+                    if topic and not thread_id:
+                        raise ValueError("Для топика укажите его ID или ссылку (бот не умеет искать топик по имени)")
+                    if thread_id:
+                        # Название в списке: «Группа › Топик»
+                        name = f"{name} › {topic or '#' + str(thread_id)}"
+                    add_chat(name, chat_id, self.db_path, topic=topic or None, thread_id=thread_id)
                 except ValueError as e:
                     return render_template("error.html", text=str(e)), 400
                 return redirect(url_for("chats_view"))
@@ -511,6 +519,7 @@ class WebApp:
                 init_db(self.db_path, drop_table=True, force=True)
                 migrate_add_ntfy(self.db_path)
                 migrate_add_once(self.db_path)
+                migrate_add_topics(self.db_path)
                 return redirect(url_for("schedules_view"))
             except Exception as e:
                 self.log.error("Ошибка при переинициализации БД: %s", str(e))

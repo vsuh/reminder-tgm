@@ -1,3 +1,4 @@
+import re
 import logging
 import os
 from dotenv import load_dotenv
@@ -89,3 +90,27 @@ def get_environment_name() -> str:
     """
     return 'prod' if os.name == 'posix' else 'dev'
 
+
+
+def parse_thread_id(text) -> int | None:
+    """
+    ID топика Telegram-группы из числа или ссылки на топик.
+    '5', 't.me/c/1234567890/5', 'https://t.me/c/1234567890/5/17', 't.me/mygroup/5' -> 5
+    Пустой ввод -> None. Неверный формат -> ValueError.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        value = int(text)
+    else:
+        m = re.search(r"t\.me/(?:c/\d+|(?!c/)[A-Za-z0-9_]+)/(\d+)", text)
+        if not m:
+            raise ValueError(
+                f'Не удалось определить ID топика из "{text}". '
+                'Укажите число или ссылку вида https://t.me/c/<чат>/<топик>'
+            )
+        value = int(m.group(1))
+    if value <= 0:
+        raise ValueError("ID топика должен быть положительным числом")
+    return value

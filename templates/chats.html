@@ -19,6 +19,7 @@
                     <th scope="col">ID</th>
                     <th scope="col">Название</th>
                     <th scope="col">Chat ID</th>
+                    <th scope="col">Топик</th>
                     <th scope="col">Действия</th>
                 </tr>
            </thead>
@@ -28,6 +29,7 @@
                     <td>{{ chat.id }}</td>
                     <td>{{ chat.name }}</td>
                     <td>{{ chat.chat_id }}</td>
+                    <td>{% if chat.thread_id %}{{ chat.topic or '' }} <small class="text-muted">#{{ chat.thread_id }}</small>{% endif %}</td>
                     <td>
                         <a href="{{ url_for('delete_this_chat', chat_id=chat.id) }}" class="btn btn-danger btn-sm" title="Удалить" onclick="return confirm('Удалить этот чат?   Связанные расписания тоже будут удалены!');">
                             <i class="fas fa-trash"></i>
@@ -47,6 +49,15 @@
             <div class="mb-3">
                 <label for="chat_id" class="form-label">Chat ID:</label>
                 <input type="text" class="form-control" id="chat_id" name="chat_id" required>
+            </div>
+            <div class="mb-3">
+                <label for="topic" class="form-label">Топик (необязательно, подпись):</label>
+                <input type="text" class="form-control" id="topic" name="topic" placeholder="Health">
+            </div>
+            <div class="mb-3">
+                <label for="thread" class="form-label">ID или ссылка топика (необязательно):</label>
+                <input type="text" class="form-control" id="thread" name="thread" placeholder="5 или https://t.me/c/1234567890/5">
+                <div class="form-text">Одну группу можно добавить несколько раз — по разу на каждый топик. Ссылку на топик можно скопировать в Telegram.</div>
             </div>
 	<p> Бот с токеном TLCR_TELEGRAM_TOKEN из .env файла должен быть администратором в этом чате </p>
             <button type="submit" class="btn btn-warning"><i class="fas fa-plus"></i> Добавить</button>
